@@ -1,0 +1,266 @@
+'use client'
+
+import { useEffect, useRef } from 'react'
+
+/**
+ * 互動追蹤 hook - 追蹤使用者與內容的互動行為
+ * 包括：可見時間、滾動深度、停留時間、互動類型
+ */
+interface InteractionEvent {
+  contentId: string
+  type: 'view' | 'dwell' | 'like' | 'dislike' | 'scroll' | 'exit'
+  duration?: number        // 延遲時間 (毫秒)
+  scrollDepth?: number     // 滾動深度 (0-1)
+  viewPercentage?: number  // 可見區域百分比 (0-1)
+  timestamp: Date
+}
+
+// localStorage 金鑰
+const INTERACTIONS_STORAGE_KEY = 'aipcs_interaction_logs'
+
+/**
+ * 儲存互動事件到 localStorage
+ */
+function saveInteraction(event: InteractionEvent): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    // 讀取現有事件
+    const existing = localStorage.getItem(INTERACTIONS_STORAGE_KEY)
+    const events: InteractionEvent[] = existing ? JSON.parse(existing) : []
+    
+    // 添加新事件
+    events.push({
+      ...event,
+      timestamp: new Date() // 確保使用當前時間
+    })
+    
+    // 只保留最近 1000 個事件避免儲存過多
+    if (events.length > 1000) {
+      events.splice(0, 100)
+    }
+    
+    localStorage.setItem(INTERACTIONS_STORAGE_KEY, JSON.stringify(events))
+    
+    // 開發環境記錄
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📊 互動事件已儲存:', event.contentId, event.type)
+    }
+  } catch (error) {
+    console.warn('無法儲存互動事件:', error)
+  }
+}
+
+/**
+ * 計算元素可見區域百分比
+ */
+function calculateViewPercentage(element: HTMLElement): number {
+  const rect = element.getBoundingClientRect()
+  const windowHeight = window.innerHeight
+  
+  // 計算元素在視窗中的可見部分
+  const visibleTop = Math.max(rect.top, 0)
+  const visibleBottom = Math.min(rect.bottom, windowHeight)
+  
+  if (visibleTop >= visibleBottom) return 0
+  
+  const visibleHeight = visibleBottom - visibleTop
+  const elementHeight = rect.height
+  
+  return Math.min(visibleHeight / elementHeight, 1)
+}
+
+export function useInteractionTracking(
+  contentId: string,
+  options: {
+    trackScroll?: boolean   // 是否追蹤滾動
+    trackDwell?: boolean    // 是否追蹤停留時間
+    threshold?: number      // 停留時間閾值 (毫秒)
+  } = {}
+) {
+  const { trackScroll = true, trackDwell = true, threshold = 3000 } = options
+  
+  const startTimeRef = useRef<number | null>(null)
+  const visibilityRef = useRef<IntersectionObserver | null>(null)
+  const elementRef = useRef<HTMLElement | null>(null)
+  const maxScrollRef = useRef<number>(0)
+  const hasTrackedRef = useRef({
+    view: false,
+    dwell: false,
+  })
+
+  useEffect(() => {
+    // 查找元素
+    const element = document.getElementById(`content-${contentId}`)
+    if (!element) return
+    
+    elementRef.current = element
+
+    // 初始可見度追蹤
+    saveInteraction({
+      contentId,
+      type: 'view',
+      viewPercentage: 1,
+      timestamp: new Date()
+    })
+    
+    hasTrackedRef.current.view = true
+    
+    // 設定開始時間
+    startTimeRef.current = Date.now()
+
+    // 監聽可見度變化（IntersectionObserver）
+    if (trackScroll || trackDwell) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            const viewPercentage = calculateViewPercentage(element)
+            
+            // 當元素成為可見時開始追蹤停留時間
+            if (entry.isIntersecting && trackDwell && !hasTrackedRef.current.dwell) {
+              const dwellStartTime = Date.now()
+              
+              // 延遲檢查停留時間
+              setTimeout(() => {
+                const dwellTime = Date.now() - dwellStartTime
+                
+                if (
+                  entry.isIntersecting && 
+                  dwellTime >= threshold &&
+                  !hasTrackedRef.current.dwell
+                ) {
+                  saveInteraction({
+                    contentId,
+                    type: 'dwell',
+                    duration: dwellTime,
+                    viewPercentage,
+                    timestamp: new Date()
+                  })
+                  
+                  hasTrackedRef.current.dwell = true
+                }
+              }, threshold)
+            }
+            
+            // 追蹤滾動深度
+            if (trackScroll && entry.isIntersecting) {
+              const scrollDepth = 1 - (entry.boundingClientRect.top / window.innerHeight)
+              
+              if (scrollDepth > maxScrollRef.current) {
+                maxScrollRef.current = scrollDepth
+                
+                saveInteraction({
+                  contentId,
+                  type: 'scroll',
+                  scrollDepth,
+                  viewPercentage,
+                  timestamp: new Date()
+                })
+              }
+            }
+          })
+        },
+        {
+          threshold: Array.from({ length: 20 }, (_, i) => i * 0.05), // 0%, 5%, 10%, ... 95%
+          root: null,
+          rootMargin: '0px'
+        }
+      )
+      
+      visibilityRef.current = observer
+      observer.observe(element)
+    }
+
+    // 監聽頁面離開事件（beforeunload）
+    const handleBeforeUnload = () => {
+      if (startTimeRef.current) {
+        const totalTime = Date.now() - startTimeRef.current
+        
+        saveInteraction({
+          contentId,
+          type: 'exit',
+          duration: totalTime,
+          scrollDepth: maxScrollRef.current,
+          timestamp: new Date()
+        })
+      }
+    }
+    
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    // 監聽頁面切換事件（visibilitychange）
+    let lastVisibleTime = Date.now()
+    
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        const hiddenTime = Date.now() - lastVisibleTime
+        
+        if (hiddenTime >= 1000) { // 只記錄超過 1 秒的切換
+          saveInteraction({
+            contentId,
+            type: 'exit',
+            duration: hiddenTime,
+            timestamp: new Date()
+          })
+        }
+      } else {
+        lastVisibleTime = Date.now()
+      }
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      // 清理資源
+      if (visibilityRef.current) {
+        visibilityRef.current.disconnect()
+      }
+      
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      
+      // 記錄離開時的數據
+      if (startTimeRef.current) {
+        const totalTime = Date.now() - startTimeRef.current
+        
+        saveInteraction({
+          contentId,
+          type: 'exit',
+          duration: totalTime,
+          scrollDepth: maxScrollRef.current,
+          timestamp: new Date()
+        })
+      }
+    }
+  }, [contentId, trackScroll, trackDwell, threshold])
+
+  return {
+    // 立即記錄互動事件（供外部調用）
+    recordInteraction: (type: 'like' | 'dislike') => {
+      saveInteraction({
+        contentId,
+        type,
+        timestamp: new Date()
+      })
+    },
+    
+    // 獲取互動統計
+    getInteractionStats: () => {
+      if (typeof window === 'undefined') return null
+      
+      try {
+        const events = JSON.parse(localStorage.getItem(INTERACTIONS_STORAGE_KEY) || '[]')
+        const contentEvents = events.filter((e: InteractionEvent) => e.contentId === contentId)
+        
+        const likes = contentEvents.filter((e: InteractionEvent) => e.type === 'like').length
+        const dislikes = contentEvents.filter((e: InteractionEvent) => e.type === 'dislike').length
+        const totalViews = contentEvents.filter((e: InteractionEvent) => e.type === 'view').length
+        
+        return { likes, dislikes, totalViews }
+      } catch (error) {
+        console.warn('無法取得互動統計:', error)
+        return null
+      }
+    }
+  }
+}

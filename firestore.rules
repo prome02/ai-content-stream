@@ -1,0 +1,153 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========================================
+    // 生產環境安全規則 (嚴格)
+    // ========================================
+
+    // 工具函式：驗證使用者是否已登入
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // 工具函式：驗證使用者 UID
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // 工具函式：驗證站點 ID 是否有效
+    function isValidSite(site) {
+      return site in ['siteA', 'siteB', 'siteC'];
+    }
+
+    // 工具函式：驗證使用者是否屬於該站點
+    function belongsToSite(site) {
+      return isAuthenticated() &&
+             request.auth.token.get('siteId', '') == site;
+    }
+
+    // 工具函式：驗證字串長度
+    function isValidStringLength(value, maxLength) {
+      return value is string && value.size() <= maxLength;
+    }
+
+    // 工具函式：驗證時間戳記
+    function isValidTimestamp(value) {
+      return value is timestamp;
+    }
+
+    // ========================================
+    // 多站點架構：站點資料隔離
+    // ========================================
+
+    // 使用者資料：{site}/users/{userId}
+    match /{site}/users/{userId} {
+      // 必須是有效站點
+      allow read: if isValidSite(site) &&
+                     belongsToSite(site) &&
+                     isOwner(userId);
+
+      allow create: if isValidSite(site) &&
+                       belongsToSite(site) &&
+                       isOwner(userId) &&
+                       // 驗證資料結構
+                       request.resource.data.keys().hasAll(['email', 'createdAt', 'siteId']) &&
+                       request.resource.data.siteId == site &&
+                       isValidStringLength(request.resource.data.email, 320) &&
+                       isValidTimestamp(request.resource.data.createdAt);
+
+      allow update: if isValidSite(site) &&
+                       belongsToSite(site) &&
+                       isOwner(userId) &&
+                       // 不允許修改站點 ID
+                       request.resource.data.siteId == resource.data.siteId;
+
+      allow delete: if isValidSite(site) &&
+                       belongsToSite(site) &&
+                       isOwner(userId);
+    }
+
+    // 分析記錄：{site}/analysisRecords/{recordId}
+    match /{site}/analysisRecords/{recordId} {
+      allow read: if isValidSite(site) &&
+                     belongsToSite(site) &&
+                     resource.data.userId == request.auth.uid;
+
+      allow create: if isValidSite(site) &&
+                       belongsToSite(site) &&
+                       request.resource.data.userId == request.auth.uid &&
+                       request.resource.data.siteId == site &&
+                       // 驗證資料欄位
+                       request.resource.data.keys().hasAll(['userId', 'siteId', 'data', 'result', 'createdAt']) &&
+                       request.resource.data.data is list &&
+                       request.resource.data.data.size() > 0 &&
+                       request.resource.data.data.size() <= 1000 &&
+                       isValidTimestamp(request.resource.data.createdAt);
+
+      allow update: if isValidSite(site) &&
+                       belongsToSite(site) &&
+                       resource.data.userId == request.auth.uid &&
+                       // 不允許修改擁有者和站點
+                       request.resource.data.userId == resource.data.userId &&
+                       request.resource.data.siteId == resource.data.siteId;
+
+      allow delete: if isValidSite(site) &&
+                       belongsToSite(site) &&
+                       resource.data.userId == request.auth.uid;
+    }
+
+    // 使用者統計：{site}/userStats/{userId}
+    match /{site}/userStats/{userId} {
+      allow read: if isValidSite(site) &&
+                     belongsToSite(site) &&
+                     isOwner(userId);
+
+      // 統計資料由 Functions 更新,使用者不可直接寫入
+      allow write: if false;
+    }
+
+    // 系統配置：{site}/system/{configId}
+    match /{site}/system/{configId} {
+      // 僅允許讀取,不允許寫入
+      allow read: if isValidSite(site) &&
+                     belongsToSite(site) &&
+                     isAuthenticated();
+      allow write: if false;
+    }
+
+    // ========================================
+    // 速率限制資料：僅 Functions 可寫入
+    // ========================================
+
+    match /rateLimits/{userId} {
+      // 使用者只能讀取自己的速率限制狀態
+      allow read: if isOwner(userId);
+
+      // 僅 Functions 可寫入 (透過 Admin SDK)
+      allow write: if false;
+    }
+
+    // ========================================
+    // 成本追蹤：僅 Functions 可寫入
+    // ========================================
+
+    match /costTracking/{logId} {
+      // 管理員可讀取 (需設定 custom claim: admin = true)
+      allow read: if isAuthenticated() &&
+                     request.auth.token.get('admin', false) == true;
+
+      // 僅 Functions 可寫入
+      allow write: if false;
+    }
+
+    // ========================================
+    // 預設規則：拒絕所有其他存取
+    // ========================================
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

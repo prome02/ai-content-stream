@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI 生成個人化內容資訊流平台
 
-## Getting Started
+## 專案概述
 
-First, run the development server:
+打造一個「AI生成的無限資訊流」平台，讓使用者在無需對話的情況下，透過行為反饋自動生成個人化內容。
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+### 核心價值
+- **無縫體驗**：不需要與 AI 對話，維持使用者原有的滑動習慣
+- **智能學習**：根據點讚、停留時間等潛行為自動優化內容
+- **無限內容**：利用 LLM 持續生成高品質的個人化內容
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 快速導覽
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- [商機概念](./business-concept.md) - 詳細商機分析
+- [MVP 開發計畫](./mvp-plan.md) - 5天開發計畫
+- [技術堆疊](./tech-stack.md) - 推薦技術架構
+- [風險分析](./risk-analysis.md) - 風險評估與緩解
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 評分概覽
 
-## Learn More
+**總分: 94/100**
 
-To learn more about Next.js, take a look at the following resources:
+| 項目 | 評分 |
+|------|------|
+| 獨特性 | 5/5 |
+| AI 可行性 | 4/5 |
+| 完成時間 | 4/5 |
+| 市場規模 | 5/5 |
+| 收費模型 | 5/5 |
+| 擴展性 | 5/5 |
+| 授權 | 5/5 |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 完成機率
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**90%+**
 
-## Deploy on Vercel
+- 技術基礎已存在
+- 核心功能明確
+- MVP 開發週期短 (5天)
+- 市場潛在需求巨大
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 聯絡與討論
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+此專案處於概念規劃階段，歡迎提供反饋與建議。
+
+---
+
+*最後更新: 2026-01-20*
