@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { auth, googleProvider } from '@/lib/real-firebase'
 
 interface User {
   uid: string
@@ -15,74 +16,136 @@ interface AuthState {
   error: string | null
 }
 
-const MOCK_USER: User = {
-  uid: 'mock-user-123456',
-  email: 'test@example.com',
-  displayName: '測試使用者',
-  photoURL: null
-}
-
-// 純本地開發者的 Auth hook - 完全不依賴 Firebase
+// 真實 Firebase Auth hook
 export function useAuth() {
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
-    loading: false,  // 初始化不要 loading
+    loading: true,  // 初始載入以檢查 auth 狀態
     error: null
   })
 
-  // 開發環境快速登入
+  // 監聽 Firebase 身份驗證狀態變化
   useEffect(() => {
-    if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-      ;(window as any).quickLogin = () => {
-        setAuthState({
-          user: MOCK_USER,
-          loading: false,
-          error: null
-        })
-        console.log('✅ 已使用模擬使用者登入')
+    if (typeof window === 'undefined') {
+      setAuthState(prev => ({ ...prev, loading: false }))
+      return
+    }
+
+    console.log('🔧 開始監聽 Firebase 身份驗證狀態...')
+    
+    try {
+      const unsubscribe = auth.onAuthStateChanged(
+        (firebaseUser) => {
+          console.log('🔄 Firebase 身份驗證狀態變更:', firebaseUser ? '已登入' : '未登入')
+          
+          let user: User | null = null
+          
+          if (firebaseUser) {
+            user = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              displayName: firebaseUser.displayName,
+              photoURL: firebaseUser.photoURL
+            }
+            console.log('✅ 使用者已登入:', user.email)
+          } else {
+            console.log('🔒 使用者未登入')
+          }
+          
+          setAuthState({
+            user,
+            loading: false,
+            error: null
+          })
+        },
+        (error) => {
+          console.error('❌ Firebase 身份驗證監聽錯誤:', error)
+          setAuthState({
+            user: null,
+            loading: false,
+            error: error.message || 'Firebase 身份驗證錯誤'
+          })
+        }
+      )
+      
+      // 清理函數
+      return () => {
+        console.log('🧹 清理 Firebase 身份驗證監聽')
+        unsubscribe()
       }
+    } catch (error: any) {
+      console.error('❌ Firebase 身份驗證監聽初始化失敗:', error)
+      setAuthState({
+        user: null,
+        loading: false,
+        error: '無法連接到 Firebase 身份驗證服務'
+      })
     }
   }, [])
 
   const signInWithGoogle = async () => {
     try {
       setAuthState(prev => ({ ...prev, loading: true, error: null }))
+      console.log('🔄 開始 Firebase Google 登入...')
       
-      // 開發環境直接使用模擬使用者
-      console.log('🧪 開發環境：使用模擬使用者登入')
-      await new Promise(resolve => setTimeout(resolve, 300)) // 模擬延遲
+      const result = await auth.signInWithPopup(googleProvider)
+      console.log('✅ Firebase Google 登入成功')
       
-      setAuthState({
-        user: MOCK_USER,
-        loading: false,
-        error: null
-      })
+      // auth.onAuthStateChanged 會自動更新狀態
     } catch (error: any) {
+      console.error('❌ Firebase Google 登入失敗:', error)
+      
+      // 如果 Firebase 配置有問題，提供明確的錯誤訊息
+      let errorMessage = error.message || 'Google 登入失敗'
+      
+      if (errorMessage.includes('配置不完整') || errorMessage.includes('初始化失敗')) {
+        errorMessage = `Firebase 配置錯誤: ${errorMessage}\n請檢查 .env.local 設定檔`
+      }
+      
       setAuthState({
         user: null,
         loading: false,
-        error: error.message || 'Google 登入失敗'
+        error: errorMessage
       })
     }
   }
 
   const logout = async () => {
-    setAuthState({ user: null, loading: false, error: null })
+    try {
+      console.log('🔄 開始 Firebase 登出...')
+      await auth.signOut()
+      console.log('✅ Firebase 登出成功')
+      // auth.onAuthStateChanged 會自動更新狀態
+    } catch (error: any) {
+      console.error('❌ Firebase 登出失敗:', error)
+      setAuthState(prev => ({ 
+        ...prev, 
+        error: error.message || '登出失敗' 
+      }))
+    }
   }
 
   const signInWithMock = () => {
-    setAuthState({
-      user: MOCK_USER,
-      loading: false,
-      error: null
-    })
-    console.log('🎮 開發者模式：已使用模擬使用者登入')
+    console.log('🚫 signInWithMock 已被禁用')
+    setAuthState(prev => ({ 
+      ...prev, 
+      error: '模擬使用者登入已被禁用，請使用 Firebase 真實身份驗證' 
+    }))
+  }
+  
+  const fastLogin = () => {
+    console.log('🚫 fastLogin 已被禁用')
+    setAuthState(prev => ({ 
+      ...prev, 
+      error: '快速登入已被禁用，請使用 Firebase 真實身份驗證' 
+    }))
   }
 
   return {
     ...authState,
     signInWithGoogle,
     signInWithMock,
-    logout
+    logout,
+    fastLogin
   }
 }
