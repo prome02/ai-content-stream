@@ -9,14 +9,20 @@
     "ui": {
       "enabled": true,
       "port": 4000
-    }
+    },
+    "hosting": {
+      "port": 5001
+    },
+    "singleProjectMode": true
   },
   "firestore": {
+    "database": "(default)",
+    "location": "asia-east1",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
-    "public": "out",
+    "public": "public",
     "ignore": [
       "firebase.json",
       "**/.*",

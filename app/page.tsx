@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
 export default function Home() {
-  const { user, loading, signInWithGoogle } = useAuth()
+  const { user, loading, signInWithGoogle, signInWithMock, fastLogin } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
@@ -72,15 +72,40 @@ export default function Home() {
             <span>使用 Google 帳戶登入</span>
           </button>
 
-          {/* 開發者模式快速登入按鈕 */}
+          {/* 開發者模式快速登入按鈕 - 使用 Firebase Emulator */}
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-4 pt-4 border-t border-dashed border-gray-300">
-              <div className="text-xs text-gray-500 mb-2">開發者測試模式</div>
+              <div className="text-xs text-gray-500 mb-2">開發者測試模式 (Emulator)</div>
               <button
-                onClick={() => {
-                  // 調用瀏覽器 console 中暴露的快速登入函數
-                  if ((window as any).quickLogin) {
-                    (window as any).quickLogin()
+                onClick={async () => {
+                  console.log('🟡 開始 Firebase Emulator 快速測試登入...')
+                  
+                  try {
+                    // 直接使用 Firebase 的 Google 登入功能
+                    // 在 Emulator 模式下，signInWithPopup 會模擬成功登入
+                    console.log('🔄 使用 Firebase Google 登入...')
+                    await signInWithGoogle()
+                    console.log('✅ 已觸發 Firebase Google 登入')
+                    
+                  } catch (error: any) {
+                    console.error('❌ Firebase Emulator 登入失敗:', error)
+                    
+                    // 檢查 Emulator 是否在運行
+                    try {
+                      const emulatorCheck = await fetch('http://localhost:9099', {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' }
+                      })
+                      
+                      if (emulatorCheck.ok) {
+                        console.log('✅ Firebase Auth Emulator 正在運行')
+                        alert(`Firebase Auth Emulator 登入失敗:\n${error.message}\n\n請確保:\n1. Firebase Emulator 正在運行 (firebase emulators:start)\n2. 瀏覽器已允許彈出視窗`)
+                      } else {
+                        alert(`Firebase Auth Emulator 未運行\n請執行: firebase emulators:start`)
+                      }
+                    } catch (emulatorError) {
+                      alert(`無法連接 Firebase Auth Emulator (localhost:9099)\n請執行: firebase emulators:start`)
+                    }
                   }
                 }}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-purple-100 text-purple-700 text-sm font-medium transition hover:bg-purple-200"
@@ -88,10 +113,10 @@ export default function Home() {
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                 </svg>
-                開發者快速登入（繞過 Firebase）
+                開發者快速登入 (Firebase Emulator)
               </button>
               <p className="text-xs text-gray-500 mt-2">
-                此功能僅在開發模式顯示，用於 Firebase 模擬器連線失敗時測試
+                此功能僅在開發模式顯示，使用 Firebase Auth Emulator 測試帳戶
               </p>
             </div>
           )}

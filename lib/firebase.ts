@@ -18,26 +18,9 @@ if (isBrowser) {
       return () => {} // 取消訂閱函數
     },
     
-    // 模擬 signInWithPopup - 開發環境直接回調成功
+    // TODO: 實作真實 Firebase 身份驗證
     signInWithPopup: () => {
-      return new Promise(resolve => {
-        // 模擬使用者登入成功
-        setTimeout(() => {
-          const mockUser = {
-            uid: 'mock-user-123456',
-            email: 'test@example.com',
-            displayName: '測試使用者',
-            photoURL: null
-          }
-          
-          // 觸發 auth state change
-          ;(auth as any)._triggerAuthChange?.(mockUser)
-          
-          resolve({
-            user: mockUser
-          })
-        }, 300)
-      })
+      throw new Error('真實 Firebase 身份驗證未實作，請先配置 Firebase SDK')
     },
     
     // 模擬 signOut

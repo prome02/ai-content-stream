@@ -68,6 +68,13 @@ Thumbs.db
 /risk-analysis.md
 /tech-stack.md
 /test-full-flow.js
+scripts/test-full-flow.js
+docs/business-concept.md
+docs/mvp-plan.md
+docs/risk-analysis.md
+docs/tech-stack.md
+docs/QUICK-TEST.md
+docs/TESTING-GUIDE.md
 
 # Temporary/transient files
 *.tmp
