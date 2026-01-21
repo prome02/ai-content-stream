@@ -1,0 +1,82 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Firebase logs and debug files
+*-debug.log
+firestore-debug.log
+firebase-debug.log
+
+# Testing and development files
+/test-*.js
+/scripts/*.test.js
+
+# Local development caches
+.firebase/
+
+# IDE-specific files
+.vscode/
+.idea/
+
+# OS-specific files
+Thumbs.db
+.DS_Store
+*.swp
+*.swo
+
+# AI-generated test files (generated during development)
+/business-concept.md
+/mvp-plan.md
+/risk-analysis.md
+/tech-stack.md
+/test-full-flow.js
+scripts/test-full-flow.js
+docs/business-concept.md
+docs/mvp-plan.md
+docs/risk-analysis.md
+docs/tech-stack.md
+docs/QUICK-TEST.md
+docs/TESTING-GUIDE.md
+
+# Temporary/transient files
+*.tmp
+*.temp
+*.bak
