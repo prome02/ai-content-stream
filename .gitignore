@@ -39,3 +39,37 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Firebase logs and debug files
+*-debug.log
+firestore-debug.log
+firebase-debug.log
+
+# Testing and development files
+/test-*.js
+/scripts/*.test.js
+
+# Local development caches
+.firebase/
+
+# IDE-specific files
+.vscode/
+.idea/
+
+# OS-specific files
+Thumbs.db
+.DS_Store
+*.swp
+*.swo
+
+# AI-generated test files (generated during development)
+/business-concept.md
+/mvp-plan.md
+/risk-analysis.md
+/tech-stack.md
+/test-full-flow.js
+
+# Temporary/transient files
+*.tmp
+*.temp
+*.bak
