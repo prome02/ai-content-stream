@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { calculateQualityScore, updateLocalStorageScore, getUserData, getUserAge, getPositiveRate, getRecentLikes, InteractionAction } from '@/lib/quality-scoring'
+import { getUserAge, getPositiveRate, getRecentLikes } from '@/lib/quality-scoring'
 import AbTestingManager from '@/lib/ab-testing'
 import EventTrackingManager from '@/lib/event-tracking'
-import { db } from '@/lib/firebase' // 實際應該導入，但暫時模擬
 
 // 模擬 Firestore 操作
 const mockContentMap = new Map<string, any>()
