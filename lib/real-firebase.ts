@@ -28,9 +28,9 @@ console.log('🔧 Firebase 配置:', {
 
 // 初始化 Firebase
 let app
-let auth
-let db
-let googleProvider
+let auth: any
+let db: any
+let googleProvider: any
 
 try {
   if (typeof window !== 'undefined') {
@@ -99,4 +99,10 @@ try {
   googleProvider = {}
 }
 
-export { auth, db, googleProvider }
+export { 
+  auth, 
+  db, 
+  googleProvider,
+  signInWithPopup,
+  signOut
+}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuth } from '@/app/hooks/useAuth'
+import { getUserPreferences } from '@/lib/user-data'
 import { LogIn, Loader2, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
@@ -10,9 +11,28 @@ export default function Home() {
   const router = useRouter()
 
   useEffect(() => {
-    // 如果使用者已登入，跳轉至 onboarding
+    // 如果使用者已登入，檢查是否已有偏好設定
+    const checkPreferencesAndNavigate = async () => {
+      if (user && !loading) {
+        try {
+          const preferences = await getUserPreferences(user.uid)
+          if (preferences?.interests && preferences.interests.length > 0) {
+            // 已經有興趣偏好，直接跳轉到 feed
+            router.push('/feed')
+          } else {
+            // 還沒有興趣偏好，跳轉到 onboarding
+            router.push('/onboarding/interests')
+          }
+        } catch (error) {
+          console.error('檢查使用者偏好失敗:', error)
+          // 失敗時跳到 onboarding
+          router.push('/onboarding/interests')
+        }
+      }
+    }
+
     if (user && !loading) {
-      router.push('/onboarding/interests')
+      checkPreferencesAndNavigate()
     }
   }, [user, loading, router])
 

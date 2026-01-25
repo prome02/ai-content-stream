@@ -36,8 +36,18 @@ class LocalStorageCache {
   private CACHE_PREFIX = 'aipcs_cache_'
   private TTL = 30 * 60 * 1000  // 30分鐘
 
+  // 檢查是否為瀏覽器環境（可使用 localStorage）
+  private isBrowser(): boolean {
+    return typeof window !== 'undefined' && typeof localStorage !== 'undefined'
+  }
+
   set(userId: string, contents: ContentItem[]): void {
     try {
+      if (!this.isBrowser()) {
+        // 伺服器環境：跳過 localStorage 操作
+        return
+      }
+      
       const key = `${this.CACHE_PREFIX}${userId}`
       const cacheEntry = {
         contents,
@@ -52,6 +62,11 @@ class LocalStorageCache {
 
   get(userId: string): ContentItem[] | null {
     try {
+      if (!this.isBrowser()) {
+        // 伺服器環境：返回 null（不讀取 localStorage）
+        return null
+      }
+      
       const key = `${this.CACHE_PREFIX}${userId}`
       const cached = localStorage.getItem(key)
       
@@ -79,11 +94,18 @@ class LocalStorageCache {
   }
 
   clear(userId: string): void {
+    if (!this.isBrowser()) {
+      return
+    }
     localStorage.removeItem(`${this.CACHE_PREFIX}${userId}`)
   }
 
   // 清理所有過期快取
   cleanup(): void {
+    if (!this.isBrowser()) {
+      return
+    }
+    
     const now = Date.now()
     const keysToRemove: string[] = []
     
@@ -129,19 +151,19 @@ export class ContentCacheService {
     count: number = 10,
     interests: string[] = []
   ): Promise<ContentItem[]> {
-    console.log('🔍 查詢快取內容:', userId, interests)
+    console.log(' 查詢快取內容:', userId, interests)
 
     // 1. 檢查記憶體快取
     const memoryContents = this.memoryCache.get(userId)
     if (memoryContents && memoryContents.length >= count) {
-      console.log('⚡ 從記憶體快取返回')
+      console.log(' 從記憶體快取返回')
       return memoryContents.slice(0, count)
     }
 
     // 2. 檢查 localStorage 快取
     const localStorageContents = this.localStorageCache.get(userId)
     if (localStorageContents && localStorageContents.length >= count) {
-      console.log('📦 從 localStorage 快取返回')
+      console.log(' 從 localStorage 快取返回')
       // 同時更新記憶體快取
       this.memoryCache.set(userId, localStorageContents)
       return localStorageContents.slice(0, count)
@@ -155,14 +177,14 @@ export class ContentCacheService {
     )
 
     if (filteredByInterest.length >= count) {
-      console.log('🎯 從模擬數據篩選興趣內容')
+      console.log(' 從模擬數據篩選興趣內容')
       const result = filteredByInterest.slice(0, count)
       this.updateCache(userId, result)
       return result
     }
 
     // 4. 降級：返回隨機模擬內容
-    console.log('⚠️ 使用降級內容')
+    console.log(' 使用降級內容')
     const fallbackContent = this.getFallbackContent(userId, count)
     return fallbackContent
   }
@@ -220,7 +242,10 @@ export class ContentCacheService {
           return b.qualityScore - a.qualityScore
         }
 
-        return b.generatedAt.getTime() - a.generatedAt.getTime()
+        // 確保 generatedAt 是 Date 物件
+        const aDate = a.generatedAt instanceof Date ? a.generatedAt : new Date(a.generatedAt)
+        const bDate = b.generatedAt instanceof Date ? b.generatedAt : new Date(b.generatedAt)
+        return bDate.getTime() - aDate.getTime()
       })
   }
 
@@ -276,7 +301,7 @@ export class ContentCacheService {
     this.memoryCache.set(userId, updatedCache)
     setTimeout(() => this.localStorageCache.set(userId, updatedCache), 0)
 
-    console.log('💾 儲存內容到快取:', userId, markedContents.length)
+    console.log('儲存內容到快取:', userId, markedContents.length)
   }
 
   /**
@@ -286,7 +311,7 @@ export class ContentCacheService {
     contentId: string,
     action: 'like' | 'dislike'
   ): Promise<void> {
-    console.log('📈 更新品質分數:', contentId, action)
+    console.log('更新品質分數:', contentId, action)
     
     // 這裡實際上應該更新 Firestore，目前只記錄
     const qualityChange = action === 'like' ? '+5' : '-8'
@@ -297,7 +322,7 @@ export class ContentCacheService {
    * 清理過期快取
    */
   cleanup(): void {
-    console.log('🧹 清理快取系統')
+    console.log('清理快取系統')
     this.localStorageCache.cleanup()
     
     // 定期清理記憶體快取
@@ -320,6 +345,12 @@ export class ContentCacheService {
   }
 
   private getLocalStorageCacheSize(): number {
+    // 檢查是否為瀏覽器環境
+    const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined'
+    if (!isBrowser) {
+      return 0
+    }
+    
     let count = 0
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)

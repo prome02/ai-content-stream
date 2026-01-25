@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/hooks/useAuth'
 import { INTERESTS_LIST } from '@/lib/interests'
-import { saveUserPreferences } from '@/lib/user-data'
+import { saveUserPreferences, getUserPreferences } from '@/lib/user-data'
 import { Check, ArrowRight, Sparkles } from 'lucide-react'
 
 export default function InterestsPage() {
@@ -12,6 +12,32 @@ export default function InterestsPage() {
   const router = useRouter()
   const [selectedInterests, setSelectedInterests] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // 檢查使用者是否已經有偏好設定，有的話直接跳轉到 feed
+  useEffect(() => {
+    const checkUserPreferences = async () => {
+      if (!user) {
+        router.push('/')
+        return
+      }
+      
+      try {
+        const preferences = await getUserPreferences(user.uid)
+        // 如果使用者已經有設定興趣偏好（非空陣列），直接跳轉到 feed
+        if (preferences?.interests && preferences.interests.length > 0) {
+          const skipOnboardingQuery = new URLSearchParams({ skipOnboarding: 'true' })
+          router.push(`/feed?${skipOnboardingQuery}`)
+        }
+      } catch (error) {
+        console.error('檢查使用者偏好失敗:', error)
+        // 如果檢查失敗，繼續停留在 onboarding
+      }
+    }
+
+    if (user) {
+      checkUserPreferences()
+    }
+  }, [user, router])
 
   const toggleInterest = (interestId: string) => {
     setSelectedInterests(prev => {
@@ -87,7 +113,7 @@ export default function InterestsPage() {
                   }
                 `}
               >
-                <div className="text-2xl mb-2">{interest.emoji}</div>
+                
                 <span className="font-medium text-sm">{interest.name}</span>
                 {interest.description && (
                   <span className="text-xs mt-1 opacity-75">
@@ -117,7 +143,7 @@ export default function InterestsPage() {
                       key={interestId}
                       className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-700"
                     >
-                      <span>{interest.emoji}</span>
+                      
                       <span>{interest.name}</span>
                     </div>
                   )

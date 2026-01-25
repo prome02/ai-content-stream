@@ -5,19 +5,16 @@ import { Heart, ThumbsDown, Clock, Repeat, MoreHorizontal, MessageSquare, Share2
 import { useInteractionTracking } from '@/app/hooks/useInteractionTracking'
 import AbTestingManager from '@/lib/ab-testing'
 
-interface ContentItem {
-  id: string
-  content: string
-  hashtags: string[]
-  emojis: string[]
-  topics: string[]
-  likes: number
-  dislikes: number
-  qualityScore: number
-  generatedAt: Date
+import type { ContentItem } from '@/types'
+
+interface ContentCardProps {
+  content: ContentItem
+  onLike: (contentId: string) => void
+  onDislike: (contentId: string) => void
+  currentUserId?: string
 }
 
-  interface ContentCardProps {
+interface ContentCardProps {
   content: ContentItem
   onLike: (contentId: string) => void
   onDislike: (contentId: string) => void
@@ -50,9 +47,11 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
   }, [content.id])
 
   // 格式化時間
-  const formatTime = (date: Date) => {
+  const formatTime = (date: Date | string) => {
+    // 確保 date 是 Date 物件
+    const dateObj = date instanceof Date ? date : new Date(date)
     const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
+    const diffMs = now.getTime() - dateObj.getTime()
     const diffMins = Math.floor(diffMs / (1000 * 60))
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
@@ -60,7 +59,7 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
     if (diffMins < 60) return `${diffMins} 分鐘前`
     if (diffHours < 24) return `${diffHours} 小時前`
     if (diffDays < 7) return `${diffDays} 天前`
-    return date.toLocaleDateString('zh-TW')
+    return dateObj.toLocaleDateString('zh-TW')
   }
 
   const handleLike = async () => {
@@ -240,16 +239,6 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
           {content.content}
         </div>
 
-        {/* Emoji 裝飾 */}
-        {content.emojis.length > 0 && (
-          <div className="flex gap-2 mb-4">
-            {content.emojis.map((emoji, index) => (
-              <span key={index} className="text-2xl">
-                {emoji}
-              </span>
-            ))}
-          </div>
-        )}
 
         {/* 話題標籤 */}
         <div className="flex flex-wrap gap-2 mb-6">
@@ -312,7 +301,7 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
             <div className="grid grid-cols-2 gap-4 text-xs">
               <div className="bg-gray-50 p-2 rounded-lg">
                 <div className="font-medium">生成時間</div>
-                <div>{content.generatedAt.toLocaleString('zh-TW')}</div>
+                <div>{formatTime(content.generatedAt)}</div>
               </div>
               <div className="bg-gray-50 p-2 rounded-lg">
                 <div className="font-medium">互動統計</div>

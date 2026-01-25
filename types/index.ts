@@ -7,9 +7,8 @@ export interface ContentItem {
   id: string
   content: string
   hashtags: string[]
-  emojis: string[]
   topics: string[]
-  generatedAt: Date
+  generatedAt: Date | string   // API 回傳可能是字串
   style: ContentStyleType
   likes: number
   dislikes: number

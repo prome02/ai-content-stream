@@ -30,6 +30,9 @@ export class RateLimiter {
 
   private config: RateLimitConfig
   private storagePrefix = 'aipcs_ratelimit_'
+  
+  // 記憶體快取用於伺服器端環境（無 localStorage 時使用）
+  private memoryCache = new Map<string, RateLimitRecord>()
 
   constructor(config: Partial<RateLimitConfig> = {}) {
     this.config = { ...RateLimiter.DEFAULT_CONFIG, ...config }
@@ -139,16 +142,36 @@ export class RateLimiter {
   // 私有方法
   // ============================
 
+  // 檢查是否為瀏覽器環境（可使用 localStorage）
+  private isBrowser(): boolean {
+    // Safely determine if running in a browser environment without causing ReferenceError
+    // `typeof` on an undeclared identifier throws ReferenceError, so we check via `globalThis`
+    // which is defined in both Node and browsers.
+    const hasWindow = typeof (globalThis as any).window !== 'undefined';
+    const hasLocalStorage = typeof (globalThis as any).localStorage !== 'undefined';
+    return hasWindow && hasLocalStorage;
+  }
+
   private async getUserRecord(uid: string): Promise<RateLimitRecord> {
     try {
       const storageKey = `${this.storagePrefix}${uid}`
-      const stored = localStorage.getItem(storageKey)
+      
+      if (this.isBrowser()) {
+        // 瀏覽器環境：使用 localStorage
+        const stored = localStorage.getItem(storageKey)
 
-      if (stored) {
-        const record = JSON.parse(stored) as RateLimitRecord
-        
-        // 驗證記錄格式
-        if (this.isValidRecord(record)) {
+        if (stored) {
+          const record = JSON.parse(stored) as RateLimitRecord
+          
+          // 驗證記錄格式
+          if (this.isValidRecord(record)) {
+            return record
+          }
+        }
+      } else {
+        // 伺服器環境：使用記憶體快取
+        const record = this.memoryCache.get(storageKey)
+        if (record && this.isValidRecord(record)) {
           return record
         }
       }
@@ -171,7 +194,14 @@ export class RateLimiter {
   private async saveUserRecord(uid: string, record: RateLimitRecord): Promise<void> {
     try {
       const storageKey = `${this.storagePrefix}${uid}`
-      localStorage.setItem(storageKey, JSON.stringify(record))
+      
+      if (this.isBrowser()) {
+        // 瀏覽器環境：使用 localStorage
+        localStorage.setItem(storageKey, JSON.stringify(record))
+      } else {
+        // 伺服器環境：使用記憶體快取
+        this.memoryCache.set(storageKey, record)
+      }
     } catch (error) {
       console.error('儲存 rate limit 記錄失敗:', error)
     }
