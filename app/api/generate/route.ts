@@ -4,43 +4,45 @@ import ContentCache from '@/services/content-cache.service'
 import { PromptBuilder } from '@/lib/prompt-builder'
 import { getUserPreferences } from '@/lib/user-data'
 import { MOCK_CONTENT_ITEMS } from '@/lib/mock-data'
-import type { 
-  ContentItem, 
-  GenerateRequest, 
-  GenerateResponse 
+import { OllamaClient } from '@/lib/ollama-client'
+import { validateRequest } from '@/lib/api-utils'
+import type {
+  ContentItem,
+  GenerateRequest,
+  GenerateResponse
 } from '@/types'
 
-// 初始化服務
+// Initialize services
 const rateLimiter = new RateLimiter({ maxRequests: 20, windowMs: 60 * 60 * 1000 })
+const ollamaClient = new OllamaClient({
+  baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+  defaultModel: process.env.OLLAMA_MODEL || 'gemma3:4b',
+  timeout: 60000, // 60 seconds for LLM generation
+  maxRetries: 2
+})
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now()
-  
+
   try {
     const body: GenerateRequest = await req.json()
     const { uid, count = 3, mode = 'default' } = body
 
-    if (!uid) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: 'INVALID_REQUEST',
-          message: '缺少使用者識別碼 (uid)'
-        },
-        { status: 400 }
-      )
+    // Validate request
+    const validationError = validateRequest(body)
+    if (validationError) {
+      return validationError
     }
 
-    // 檢查是否使用模擬資料 (從環境變數)
-    const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true' || 
-                          process.env.NODE_ENV === 'development'
-                          
-    console.log(`生成請求: ${uid}, ${count} 則內容, 模式: ${mode}, 使用 ${USE_MOCK_DATA ? '模擬資料' : '真實 LLM'}`)
+    // Check if using mock data (from environment variable)
+    const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
 
-    // 1. Rate limiting 檢查
+    console.log(`[Generate] Request: uid=${uid}, count=${count}, mode=${mode}, useMock=${USE_MOCK_DATA}`)
+
+    // 1. Rate limiting check
     const rateLimitResult = await rateLimiter.check(uid)
     if (!rateLimitResult.allowed) {
-      console.log(`Rate limit 超出: ${uid}`)
+      console.log(`[Generate] Rate limit exceeded: ${uid}`)
       
       // 使用降級內容
       const fallbackContent = getFallbackContent(uid, count)
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
     )
 
     if (cachedContent.length >= count) {
-      console.log(`快取命中，返回 ${cachedContent.length} 則內容`)
+      console.log(`[Generate] Cache hit, returning ${cachedContent.length} items`)
       
       // 遞增 rate limit 計數
       await rateLimiter.increment(uid, '/api/generate')
@@ -98,8 +100,8 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // 3. 使用 PromptBuilder 準備生成內容
-    console.log(`需要生成 ${count - cachedContent.length} 則新內容`)
+    // 3. Use PromptBuilder to prepare content generation
+    console.log(`[Generate] Need to generate ${count - cachedContent.length} new items`)
     
     const promptBuilder = new PromptBuilder()
     const recentInteractionsCount = getRecentLikes(uid, 10)
@@ -114,7 +116,7 @@ export async function POST(req: NextRequest) {
     }
     
     const prompt = promptBuilder.build(promptContext)
-    console.log('Prompt 上下文:', prompt.substring(0, 200) + '...')
+    console.log('[Generate] Prompt context:', prompt.substring(0, 200) + '...')
     
     let generatedContent: ContentItem[] = []
     let source: 'ollama' | 'fallback' | 'mock' = 'ollama'
@@ -122,11 +124,11 @@ export async function POST(req: NextRequest) {
     
     try {
       if (USE_MOCK_DATA) {
-        // 使用模擬資料生成
-        console.log('使用模擬資料生成')
+        // Use mock data for development
+        console.log('[Generate] Using mock data')
         const generateDelay = Math.random() * 1500 + 800
         await new Promise(resolve => setTimeout(resolve, generateDelay))
-        
+
         generatedContent = MOCK_CONTENT_ITEMS
           .sort(() => Math.random() - 0.5)
           .slice(0, count - cachedContent.length)
@@ -134,67 +136,105 @@ export async function POST(req: NextRequest) {
             id: `mock_${Date.now()}_${index}`,
             content: item.content,
             hashtags: item.hashtags,
-            
             topics: item.topics,
             likes: 0,
             dislikes: 0,
             qualityScore: 75 + Math.floor(Math.random() * 25),
             generatedAt: new Date(),
-            style: 'casual',
+            style: 'casual' as const,
             usedBy: [],
             reuseCount: 0
           }))
-          
+
         generationTime = Date.now() - startTime
         source = 'mock'
-        
-        console.log(`模擬資料生成完成 (${generationTime}ms)`)
+
+        console.log(`[Generate] Mock data generated (${generationTime}ms)`)
       } else {
-        // 使用真實 Ollama LLM 生成
-        console.log('使用真實 Ollama LLM 生成')
-        
-        // TODO: 實作真實 Ollama API 呼叫
-        // 目前暫用模擬資料，但標記為 ollama 模式
-        const ollamaDelay = Math.random() * 3000 + 1500
-        await new Promise(resolve => setTimeout(resolve, ollamaDelay))
-        
-        // 從快取或模擬資料篩選更相關的內容
-        generatedContent = MOCK_CONTENT_ITEMS
-          .filter(item => {
-            // 模擬 LLM 生成更相關的內容
-            return Math.random() > 0.7
-          })
-          .slice(0, count - cachedContent.length)
-          .map((item, index) => ({
-            id: `ollama_${Date.now()}_${index}`,
-            content: item.content + ' (LLM 生成)',
-            hashtags: item.hashtags,
-            
-            topics: item.topics,
-            likes: 0,
-            dislikes: 0,
-            qualityScore: 80 + Math.floor(Math.random() * 20),
-            generatedAt: new Date(),
-            style: 'casual',
-            usedBy: [],
-            reuseCount: 0
-          }))
-          
+        // Use real Ollama LLM generation
+        console.log('[Generate] Using Ollama LLM')
+
+        // Check Ollama availability first
+        const isOllamaAvailable = await ollamaClient.healthCheck()
+
+        if (!isOllamaAvailable) {
+          console.warn('[Generate] Ollama not available, falling back to mock data')
+          throw new Error('Ollama service unavailable')
+        }
+
+        // Build prompt using PromptBuilder
+        const promptData = JSON.parse(prompt)
+        const systemMessage = promptData.messages.find((m: any) => m.role === 'system')?.content || ''
+        const userMessage = promptData.messages.find((m: any) => m.role === 'user')?.content || ''
+        const fullPrompt = `${systemMessage}\n\n${userMessage}`
+
+        console.log('[Generate] Sending request to Ollama...')
+
+        // Call Ollama API
+        const ollamaResponse = await ollamaClient.generate(
+          fullPrompt,
+          promptData.model || 'gemma3:4b',
+          promptData.options || {}
+        )
+
+        console.log('[Generate] Ollama response received')
+
+        // Parse the response
+        const parsedContent = promptBuilder.parseResponse(ollamaResponse.message.content)
+
+        // Convert to ContentItem format
+        generatedContent = parsedContent.map((item: any, index: number) => ({
+          id: `ollama_${Date.now()}_${index}`,
+          content: item.content || '',
+          hashtags: item.hashtags || [],
+          topics: item.topics || [],
+          likes: 0,
+          dislikes: 0,
+          qualityScore: 80 + Math.floor(Math.random() * 20),
+          generatedAt: new Date(),
+          style: item.style || 'casual',
+          usedBy: [],
+          reuseCount: 0
+        }))
+
+        // Ensure we have enough content
+        if (generatedContent.length < count - cachedContent.length) {
+          console.log('[Generate] Ollama returned fewer items than requested, padding with mock')
+          const needed = count - cachedContent.length - generatedContent.length
+          const mockPadding: ContentItem[] = MOCK_CONTENT_ITEMS
+            .sort(() => Math.random() - 0.5)
+            .slice(0, needed)
+            .map((item, index) => ({
+              id: `mock_pad_${Date.now()}_${index}`,
+              content: item.content,
+              hashtags: item.hashtags,
+              topics: item.topics,
+              likes: 0,
+              dislikes: 0,
+              qualityScore: 70 + Math.floor(Math.random() * 20),
+              generatedAt: new Date(),
+              style: 'casual' as const,
+              usedBy: [],
+              reuseCount: 0
+            }))
+          generatedContent = [...generatedContent, ...mockPadding]
+        }
+
         generationTime = Date.now() - startTime
         source = 'ollama'
-        
-        console.log(`Ollama LLM 生成完成 (${generationTime}ms)`)  
+
+        console.log(`[Generate] Ollama generation completed (${generationTime}ms, ${generatedContent.length} items)`)
       }
       
     } catch (error) {
-      console.error('Ollama 生成失敗:', error)
-      
-      // 降級到模擬內容
+      console.error('[Generate] Ollama generation failed:', error)
+
+      // Fallback to mock content
       generatedContent = MOCK_CONTENT_ITEMS
         .sort(() => Math.random() - 0.5)
         .slice(0, count - cachedContent.length)
         .map((item, index) => ({
-          id: `gen_${Date.now()}_${index}`,
+          id: `fallback_${Date.now()}_${index}`,
           content: item.content,
           hashtags: item.hashtags,
           topics: item.topics || [],
@@ -202,14 +242,14 @@ export async function POST(req: NextRequest) {
           dislikes: 0,
           qualityScore: 70 + Math.floor(Math.random() * 30),
           generatedAt: new Date(),
-          style: 'casual',
+          style: 'casual' as const,
           usedBy: [],
           reuseCount: 0
         }))
-      
+
       generationTime = Date.now() - startTime
       source = 'fallback'
-      console.log(`使用降級內容: ${error instanceof Error ? error.message : String(error)}`)
+      console.log(`[Generate] Using fallback content: ${error instanceof Error ? error.message : String(error)}`)
     }
 
     // 4. 儲存新內容到快取 + 記算使用者權重
@@ -232,12 +272,11 @@ export async function POST(req: NextRequest) {
       rateLimit: {
         remaining: rateLimitResult.remaining - 1,
         resetAt: rateLimitResult.resetAt.toISOString()
-      },
-      message: 'Day 3 整合品質評分系統'
+      }
     })
 
   } catch (error) {
-    console.error('生成 API 錯誤:', error)
+    console.error('[Generate] API error:', error)
     const errorName = error instanceof Error ? error.name : 'UNKNOWN_ERROR'
     const errorMessage = error instanceof Error ? error.message : '未知錯誤'
 
@@ -269,7 +308,7 @@ function getTimeOfDay(): 'morning' | 'afternoon' | 'evening' | 'night' {
 }
 
 function getFallbackContent(uid: string, count: number): ContentItem[] {
-  console.log(`使用降級內容: ${uid}`)
+  console.log(`[Generate] Using fallback content for: ${uid}`)
   
   return MOCK_CONTENT_ITEMS
     .sort(() => Math.random() - 0.5)
@@ -284,7 +323,7 @@ function getFallbackContent(uid: string, count: number): ContentItem[] {
       dislikes: item.dislikes,
       qualityScore: item.qualityScore,
       generatedAt: new Date(),
-      style: 'casual',
+      style: 'casual' as const,
       usedBy: [],
       reuseCount: 0
     }))
@@ -331,7 +370,7 @@ function calculateDiversityScore(uid: string): number {
     return normalizedEntropy
     
   } catch (error) {
-    console.error('計算多樣性分數失敗:', error)
+    console.error('[Generate] Failed to calculate diversity score:', error)
     return 0.5
   }
 }

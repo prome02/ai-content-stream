@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getUserAge, getPositiveRate, getRecentLikes } from '@/lib/quality-scoring'
 import AbTestingManager from '@/lib/ab-testing'
 import EventTrackingManager from '@/lib/event-tracking'
+import { validateRequest, createErrorResponse } from '@/lib/api-utils'
 
-// 模擬 Firestore 操作
+// Mock Firestore operations
 const mockContentMap = new Map<string, any>()
 
-// 模擬使用者資料
+// Mock user data
 const mockUsers = new Map<string, any>()
 
-// 模擬互動記錄
+// Mock interaction records
 const mockInteractions = new Map<string, Array<{
   contentId: string
   uid: string
@@ -27,12 +28,19 @@ export async function POST(req: NextRequest) {
     const action: string = body.action
     const dwellTime: number = body.dwellTime
     const scrollDepth: number = body.scrollDepth
-    
-    // 積證必要欄位
-    if (!uid || !contentId || !action) {
-      return NextResponse.json(
-        { error: '缺少必要欄位: uid, contentId, action' },
-        { status: 400 }
+
+    // Validate uid
+    const validationError = validateRequest(body)
+    if (validationError) {
+      return validationError
+    }
+
+    // Validate required fields
+    if (!contentId || !action) {
+      return createErrorResponse(
+        'MISSING_FIELDS',
+        'Missing required fields: contentId, action',
+        400
       )
     }
 
@@ -71,7 +79,7 @@ export async function POST(req: NextRequest) {
       dwellTime
     )
 
-    console.log('📈 品質分數計算 (變體', abConfig.variant, '):', `${currentScore} → ${newScore}`, { reason })
+    console.log(`[Interaction] Quality score calculated (variant ${abConfig.variant}): ${currentScore} -> ${newScore}`, { reason })
     
     // 記錄互動到 AB 測試系統
     AbTestingManager.recordInteraction(uid)
@@ -163,7 +171,7 @@ export async function POST(req: NextRequest) {
     })
 
   } catch (error) {
-    console.error('儲存互動失敗:', error)
+    console.error('[Interaction] Failed to save interaction:', error)
 
     return NextResponse.json(
       {
