@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { auth, googleProvider } from '@/lib/real-firebase'
+import { auth, googleProvider, signInWithPopup, signOut } from '@/lib/real-firebase'
 
 interface User {
   uid: string
@@ -24,33 +24,53 @@ export function useAuth() {
     error: null
   })
 
-  // 監聽 Firebase 身份驗證狀態變化
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      setAuthState(prev => ({ ...prev, loading: false }))
-      return
-    }
+   // 監聽 Firebase 身份驗證狀態變化
+   useEffect(() => {
+     if (typeof window === 'undefined') {
+       setAuthState(prev => ({ ...prev, loading: false }))
+       return
+     }
 
-    console.log('🔧 開始監聽 Firebase 身份驗證狀態...')
+     // 避免 Fast Refresh 時的過多重複日誌
+     const LOG_INTERVAL = 1000 // 限制日誌頻率為1秒
+     let lastLogTime = 0
+     const shouldLog = () => {
+       const now = Date.now()
+       if (now - lastLogTime > LOG_INTERVAL) {
+         lastLogTime = now
+         return true
+       }
+       return false
+     }
+
+     if (shouldLog()) {
+        console.log('開始監聽 Firebase 身份驗證狀態')
+     }
     
     try {
-      const unsubscribe = auth.onAuthStateChanged(
-        (firebaseUser) => {
-          console.log('🔄 Firebase 身份驗證狀態變更:', firebaseUser ? '已登入' : '未登入')
-          
-          let user: User | null = null
-          
-          if (firebaseUser) {
-            user = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              displayName: firebaseUser.displayName,
-              photoURL: firebaseUser.photoURL
+       const unsubscribe = auth.onAuthStateChanged(
+         (firebaseUser: any) => {
+           if (shouldLog()) {
+              console.log('Firebase 身份驗證狀態變更:', firebaseUser ? '已登入' : '未登入')
+           }
+           
+           let user: User | null = null
+           
+           if (firebaseUser) {
+             user = {
+               uid: firebaseUser.uid,
+               email: firebaseUser.email,
+               displayName: firebaseUser.displayName,
+               photoURL: firebaseUser.photoURL
+             }
+             if (shouldLog()) {
+                console.log('使用者已登入:', user.email)
+             }
+            } else {
+              if (shouldLog()) {
+                console.log('使用者未登入')
+              }
             }
-            console.log('✅ 使用者已登入:', user.email)
-          } else {
-            console.log('🔒 使用者未登入')
-          }
           
           setAuthState({
             user,
@@ -58,8 +78,8 @@ export function useAuth() {
             error: null
           })
         },
-        (error) => {
-          console.error('❌ Firebase 身份驗證監聽錯誤:', error)
+        (error: any) => {
+           console.error('[Auth] Firebase 身份驗證監聽錯誤:', error)
           setAuthState({
             user: null,
             loading: false,
@@ -70,11 +90,13 @@ export function useAuth() {
       
       // 清理函數
       return () => {
-        console.log('🧹 清理 Firebase 身份驗證監聽')
+        if (shouldLog()) {
+          console.log('清理 Firebase 身份驗證監聽')
+        }
         unsubscribe()
       }
     } catch (error: any) {
-      console.error('❌ Firebase 身份驗證監聽初始化失敗:', error)
+       console.error('[Auth] Firebase 身份驗證監聽初始化失敗:', error)
       setAuthState({
         user: null,
         loading: false,
@@ -86,14 +108,14 @@ export function useAuth() {
   const signInWithGoogle = async () => {
     try {
       setAuthState(prev => ({ ...prev, loading: true, error: null }))
-      console.log('🔄 開始 Firebase Google 登入...')
+       console.log('開始 Firebase Google 登入')
       
-      const result = await auth.signInWithPopup(googleProvider)
-      console.log('✅ Firebase Google 登入成功')
+      const result = await signInWithPopup(auth, googleProvider)
+       console.log('Firebase Google 登入成功')
       
       // auth.onAuthStateChanged 會自動更新狀態
     } catch (error: any) {
-      console.error('❌ Firebase Google 登入失敗:', error)
+       console.error('[Auth] Firebase Google 登入失敗:', error)
       
       // 如果 Firebase 配置有問題，提供明確的錯誤訊息
       let errorMessage = error.message || 'Google 登入失敗'
@@ -112,12 +134,12 @@ export function useAuth() {
 
   const logout = async () => {
     try {
-      console.log('🔄 開始 Firebase 登出...')
-      await auth.signOut()
-      console.log('✅ Firebase 登出成功')
+      console.log('開始 Firebase 登出...')
+      await signOut(auth)
+      console.log('Firebase 登出成功')
       // auth.onAuthStateChanged 會自動更新狀態
     } catch (error: any) {
-      console.error('❌ Firebase 登出失敗:', error)
+      console.error(' Firebase 登出失敗:', error)
       setAuthState(prev => ({ 
         ...prev, 
         error: error.message || '登出失敗' 

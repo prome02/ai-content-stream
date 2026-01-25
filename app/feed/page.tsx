@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/hooks/useAuth'
 import ContentCard from '@/app/components/ContentCard'
@@ -9,9 +9,10 @@ import { useInfiniteScroll } from '@/app/hooks/useInfiniteScroll'
 import { MOCK_CONTENT_ITEMS } from '@/lib/mock-data'
 import { getUserPreferences } from '@/lib/user-data'
 import { Home, User, RefreshCw, Filter, Loader2, Sparkles, Zap, BarChart3 } from 'lucide-react'
+import type { ContentItem } from '@/types'
 
 // Feed API 函數 - 調用真實的生成 API
-async function fetchFeedContent(userId: string, count: number = 10) {
+async function fetchFeedContent(userId: string, count: number = 10): Promise<ContentItem[]> {
   try {
     console.log(`📦 請求 Feed 內容: ${userId}, ${count} 則`)
     
@@ -92,7 +93,7 @@ export default function FeedPage() {
   const { user } = useAuth()
   const router = useRouter()
   
-  const [feedItems, setFeedItems] = useState<typeof MOCK_CONTENT_ITEMS>([])
+  const [feedItems, setFeedItems] = useState<ContentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [page, setPage] = useState(1)
@@ -104,26 +105,7 @@ export default function FeedPage() {
   const [refreshCount, setRefreshCount] = useState(0)
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null)
 
-  useEffect(() => {
-    if (!user) {
-      router.push('/')
-      return
-    }
-    
-    // 載入使用者偏好
-    const loadUserPreferences = async () => {
-      if (user) {
-        const preferences = await getUserPreferences(user.uid)
-        const interests = preferences?.interests || []
-        setUserHashtags(getUserHashtags(interests))
-      }
-    }
-    
-    loadUserPreferences()
-    loadFeed()
-  }, [user, router, refreshCount, activeFilter])
-
-  const loadFeed = async () => {
+  const loadFeed = useCallback(async () => {
     if (!user) return
     
     setLoading(true)
@@ -145,14 +127,43 @@ export default function FeedPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user, page])
 
-  // 無限滾動 hook
-  const { sentinelRef } = useInfiniteScroll(() => {
-    if (!loading && !generating) {
+  useEffect(() => {
+    if (!user) {
+      router.push('/')
+      return
+    }
+    
+    // 載入使用者偏好
+    const loadUserPreferences = async () => {
+      if (user) {
+        const preferences = await getUserPreferences(user.uid)
+        const interests = preferences?.interests || []
+        setUserHashtags(getUserHashtags(interests))
+      }
+    }
+    
+    loadUserPreferences()
+    loadFeed() // 初始載入
+  }, [user, router, loadFeed])
+
+  // 當 refreshCount 或 activeFilter 變化時重新載入 feed
+  useEffect(() => {
+    if (user) {
       loadFeed()
     }
-  }, { enabled: true })
+  }, [refreshCount, activeFilter])
+
+  // 無限滾動 hook - 使用 useCallback 避免重新渲染時重新建立 hook
+  const { sentinelRef } = useInfiniteScroll(
+    useCallback(() => {
+      if (!loading && !generating) {
+        loadFeed()
+      }
+    }, [loading, generating, loadFeed]),
+    { enabled: !loading && !generating } // 只有不在載入時啟用
+  )
 
   const handleLike = async (contentId: string) => {
     console.log('👍 點讚:', contentId)

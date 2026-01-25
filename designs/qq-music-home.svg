@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="390" height="844" viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="cardGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF6B6B"/>
+      <stop offset="100%" style="stop-color:#FF8E53"/>
+    </linearGradient>
+    <linearGradient id="cardGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4FACFE"/>
+      <stop offset="100%" style="stop-color:#00F2FE"/>
+    </linearGradient>
+    <linearGradient id="albumGradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea"/>
+      <stop offset="100%" style="stop-color:#764ba2"/>
+    </linearGradient>
+    <linearGradient id="albumGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f093fb"/>
+      <stop offset="100%" style="stop-color:#f5576c"/>
+    </linearGradient>
+    <linearGradient id="albumGradient3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4facfe"/>
+      <stop offset="100%" style="stop-color:#00f2fe"/>
+    </linearGradient>
+    <linearGradient id="albumGradient4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#43e97b"/>
+      <stop offset="100%" style="stop-color:#38f9d7"/>
+    </linearGradient>
+    <!-- Tab bar blur effect -->
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="10"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="390" height="844" fill="#FFFFFF"/>
+
+  <!-- Status Bar -->
+  <g id="statusBar">
+    <text x="20" y="32" font-family="SF Pro Text, -apple-system, sans-serif" font-size="15" font-weight="600" fill="#1D1D1F">9:41</text>
+    <!-- Signal bars -->
+    <g transform="translate(290, 18)">
+      <rect x="0" y="8" width="4" height="4" rx="1" fill="#1D1D1F"/>
+      <rect x="6" y="5" width="4" height="7" rx="1" fill="#1D1D1F"/>
+      <rect x="12" y="2" width="4" height="10" rx="1" fill="#1D1D1F"/>
+      <rect x="18" y="0" width="4" height="12" rx="1" fill="#1D1D1F"/>
+    </g>
+    <!-- WiFi -->
+    <g transform="translate(320, 16)">
+      <path d="M8 12 L8 12" stroke="#1D1D1F" stroke-width="2" stroke-linecap="round"/>
+      <path d="M4 9 Q8 5 12 9" stroke="#1D1D1F" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <path d="M1 6 Q8 0 15 6" stroke="#1D1D1F" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    </g>
+    <!-- Battery -->
+    <g transform="translate(345, 17)">
+      <rect x="0" y="0" width="25" height="12" rx="3" stroke="#1D1D1F" stroke-width="1" fill="none"/>
+      <rect x="25" y="3" width="2" height="6" rx="1" fill="#1D1D1F"/>
+      <rect x="2" y="2" width="20" height="8" rx="1.5" fill="#1D1D1F"/>
+    </g>
+  </g>
+
+  <!-- Greeting Section -->
+  <g id="greeting">
+    <text x="20" y="85" font-family="SF Pro Display, -apple-system, sans-serif" font-size="34" font-weight="700" fill="#1D1D1F">早安</text>
+    <text x="20" y="115" font-family="SF Pro Text, -apple-system, sans-serif" font-size="17" fill="#86868B">發現你的今日音樂</text>
+  </g>
+
+  <!-- Personalized Playlists Section -->
+  <g id="personalizedPlaylists">
+    <text x="20" y="160" font-family="SF Pro Display, -apple-system, sans-serif" font-size="22" font-weight="600" fill="#1D1D1F">為你推薦</text>
+
+    <!-- Playlist Card 1 -->
+    <g transform="translate(20, 175)">
+      <rect width="165" height="165" rx="16" fill="url(#cardGradient1)"/>
+      <text x="15" y="135" font-family="SF Pro Text, -apple-system, sans-serif" font-size="17" font-weight="600" fill="#FFFFFF">私人漫遊</text>
+      <text x="15" y="152" font-family="SF Pro Text, -apple-system, sans-serif" font-size="13" fill="rgba(255,255,255,0.8)">為你專屬推薦</text>
+      <!-- Play button -->
+      <circle cx="140" cy="140" r="18" fill="rgba(255,255,255,0.3)"/>
+      <polygon points="135,132 135,148 148,140" fill="#FFFFFF"/>
+    </g>
+
+    <!-- Playlist Card 2 -->
+    <g transform="translate(200, 175)">
+      <rect width="165" height="165" rx="16" fill="url(#cardGradient2)"/>
+      <text x="15" y="135" font-family="SF Pro Text, -apple-system, sans-serif" font-size="17" font-weight="600" fill="#FFFFFF">每週發現</text>
+      <text x="15" y="152" font-family="SF Pro Text, -apple-system, sans-serif" font-size="13" fill="rgba(255,255,255,0.8)">每週更新</text>
+      <!-- Play button -->
+      <circle cx="140" cy="140" r="18" fill="rgba(255,255,255,0.3)"/>
+      <polygon points="135,132 135,148 148,140" fill="#FFFFFF"/>
+    </g>
+  </g>
+
+  <!-- Recently Played Section -->
+  <g id="recentlyPlayed">
+    <text x="20" y="385" font-family="SF Pro Display, -apple-system, sans-serif" font-size="22" font-weight="600" fill="#1D1D1F">最近播放</text>
+    <text x="320" y="385" font-family="SF Pro Text, -apple-system, sans-serif" font-size="15" fill="#007AFF">查看全部</text>
+
+    <!-- Album 1 -->
+    <g transform="translate(20, 400)">
+      <circle cx="40" cy="40" r="40" fill="url(#albumGradient1)"/>
+      <text x="40" y="100" font-family="SF Pro Text, -apple-system, sans-serif" font-size="13" fill="#1D1D1F" text-anchor="middle">周杰倫</text>
+    </g>
+
+    <!-- Album 2 -->
+    <g transform="translate(110, 400)">
+      <circle cx="40" cy="40" r="40" fill="url(#albumGradient2)"/>
+      <text x="40" y="100" font-family="SF Pro Text, -apple-system, sans-serif" font-size="13" fill="#1D1D1F" text-anchor="middle">林俊傑</text>
+    </g>
+
+    <!-- Album 3 -->
+    <g transform="translate(200, 400)">
+      <circle cx="40" cy="40" r="40" fill="url(#albumGradient3)"/>
+      <text x="40" y="100" font-family="SF Pro Text, -apple-system, sans-serif" font-size="13" fill="#1D1D1F" text-anchor="middle">鄧紫棋</text>
+    </g>
+
+    <!-- Album 4 -->
+    <g transform="translate(290, 400)">
+      <circle cx="40" cy="40" r="40" fill="url(#albumGradient4)"/>
+      <text x="40" y="100" font-family="SF Pro Text, -apple-system, sans-serif" font-size="13" fill="#1D1D1F" text-anchor="middle">五月天</text>
+    </g>
+  </g>
+
+  <!-- Hot Playlists Section -->
+  <g id="hotPlaylists">
+    <text x="20" y="555" font-family="SF Pro Display, -apple-system, sans-serif" font-size="22" font-weight="600" fill="#1D1D1F">熱門歌單</text>
+    <text x="320" y="555" font-family="SF Pro Text, -apple-system, sans-serif" font-size="15" fill="#007AFF">查看全部</text>
+
+    <!-- Playlist Item 1 -->
+    <g transform="translate(20, 570)">
+      <rect width="60" height="60" rx="8" fill="url(#cardGradient1)"/>
+      <text x="75" y="20" font-family="SF Pro Text, -apple-system, sans-serif" font-size="16" font-weight="500" fill="#1D1D1F">華語經典金曲</text>
+      <text x="75" y="40" font-family="SF Pro Text, -apple-system, sans-serif" font-size="13" fill="#86868B">1,234,567 次播放</text>
+    </g>
+
+    <!-- Playlist Item 2 -->
+    <g transform="translate(20, 645)">
+      <rect width="60" height="60" rx="8" fill="url(#cardGradient2)"/>
+      <text x="75" y="20" font-family="SF Pro Text, -apple-system, sans-serif" font-size="16" font-weight="500" fill="#1D1D1F">療癒系純音樂</text>
+      <text x="75" y="40" font-family="SF Pro Text, -apple-system, sans-serif" font-size="13" fill="#86868B">987,654 次播放</text>
+    </g>
+  </g>
+
+  <!-- Tab Bar -->
+  <g id="tabBar">
+    <!-- Tab bar background with blur effect simulation -->
+    <rect x="0" y="760" width="390" height="84" fill="rgba(255,255,255,0.95)"/>
+    <line x1="0" y1="760" x2="390" y2="760" stroke="#E5E5EA" stroke-width="0.5"/>
+
+    <!-- Home Tab (Active) -->
+    <g transform="translate(35, 775)">
+      <path d="M12 3L2 12h3v9h6v-6h2v6h6v-9h3L12 3z" fill="#007AFF" transform="scale(1.2)"/>
+      <text x="12" y="40" font-family="SF Pro Text, -apple-system, sans-serif" font-size="10" fill="#007AFF" text-anchor="middle">首頁</text>
+    </g>
+
+    <!-- Discover Tab -->
+    <g transform="translate(120, 775)">
+      <circle cx="12" cy="12" r="10" stroke="#86868B" stroke-width="2" fill="none" transform="scale(1.2)"/>
+      <line x1="19" y1="19" x2="26" y2="26" stroke="#86868B" stroke-width="2" transform="scale(1.2)"/>
+      <text x="12" y="40" font-family="SF Pro Text, -apple-system, sans-serif" font-size="10" fill="#86868B" text-anchor="middle">發現</text>
+    </g>
+
+    <!-- Library Tab -->
+    <g transform="translate(205, 775)">
+      <rect x="2" y="2" width="20" height="20" rx="2" stroke="#86868B" stroke-width="2" fill="none" transform="scale(1.2)"/>
+      <line x1="2" y1="8" x2="22" y2="8" stroke="#86868B" stroke-width="2" transform="scale(1.2)"/>
+      <line x1="2" y1="14" x2="22" y2="14" stroke="#86868B" stroke-width="2" transform="scale(1.2)"/>
+      <text x="12" y="40" font-family="SF Pro Text, -apple-system, sans-serif" font-size="10" fill="#86868B" text-anchor="middle">音樂庫</text>
+    </g>
+
+    <!-- Search Tab -->
+    <g transform="translate(290, 775)">
+      <circle cx="10" cy="10" r="8" stroke="#86868B" stroke-width="2" fill="none" transform="scale(1.2)"/>
+      <line x1="16" y1="16" x2="22" y2="22" stroke="#86868B" stroke-width="2" transform="scale(1.2)"/>
+      <text x="12" y="40" font-family="SF Pro Text, -apple-system, sans-serif" font-size="10" fill="#86868B" text-anchor="middle">搜尋</text>
+    </g>
+  </g>
+
+  <!-- Home Indicator -->
+  <rect x="140" y="824" width="110" height="5" rx="2.5" fill="#1D1D1F"/>
+
+</svg>

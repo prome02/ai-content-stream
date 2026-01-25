@@ -6,6 +6,7 @@ interface UseInfiniteScrollOptions {
   threshold?: number  // 觸發載入的偏移量 (0-1)
   rootMargin?: string // 觀察區域的邊界
   enabled?: boolean   // 是否啟用無限滾動
+  externalLoading?: boolean // 外部載入狀態，用於同步
 }
 
 /**
