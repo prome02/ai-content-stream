@@ -16,11 +16,12 @@ npm run start    # Start production server
 
 ## Environment Configuration
 
-See `ENVIRONMENT_SETUP.md` for complete setup guide. Key environment variables:
+See `docs/ENVIRONMENT_SETUP.md` for complete setup guide. Key environment variables:
 
 - `NEXT_PUBLIC_USE_MOCK_DATA`: `true` for mock data, `false` for real LLM
 - `NEXT_PUBLIC_USE_FIREBASE_EMULATOR`: `true` for Firebase Emulator
-- `OLLAMA_API_KEY`: Required when using real LLM mode
+- `OLLAMA_BASE_URL`: Ollama API URL (default: `http://localhost:11434`)
+- `OLLAMA_MODEL`: LLM model name (default: `gemma3:12b-cloud`)
 
 Development mode defaults to mock data + Firebase Emulator.
 
@@ -31,7 +32,7 @@ Development mode defaults to mock data + Firebase Emulator.
 - **Styling**: Tailwind CSS 4 with `clsx` + `tailwind-merge`
 - **Auth**: Firebase Auth (Google Sign-In)
 - **Database**: Firestore
-- **LLM**: Ollama API (gemma3:4b model)
+- **LLM**: Ollama API (gemma3:12b-cloud model)
 - **Data Fetching**: SWR
 
 ### Directory Structure

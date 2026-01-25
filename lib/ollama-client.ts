@@ -306,11 +306,11 @@ export class OllamaClient {
   }
 }
 
-// 預設實例
+// Default instance
 export const defaultOllamaClient = new OllamaClient({
   baseUrl: 'http://localhost:11434',
-  defaultModel: 'gemma3:4b',
-  timeout: 30000,
+  defaultModel: 'gemma3:12b-cloud',
+  timeout: 90000,
   maxRetries: 3,
   retryDelay: 1000
 })
