@@ -13,11 +13,11 @@ interface RateLimitResult {
 
 interface RateLimitRecord {
   uid: string
-  hourlyCount: number
-  lastResetHour: number          // 0-23 的小時數
+  count: number                  // Current window request count
+  windowStart: number            // Window start timestamp (ms)
   history: Array<{
-    timestamp: number            // 請求時間戳
-    endpoint: string             // API 端點
+    timestamp: number            // Request timestamp
+    endpoint: string             // API endpoint
   }>
 }
 
@@ -46,95 +46,101 @@ export class RateLimiter {
   }
 
   /**
-   * 檢查是否允許請求
+   * Check if request is allowed
    */
   async check(uid: string): Promise<RateLimitResult> {
     try {
-      console.log(`🔐 檢查 rate limit: ${uid}`)
+      console.log(`[RateLimit] Checking: ${uid}`)
 
-      // 取得使用者記錄
+      // Get user record
       const record = await this.getUserRecord(uid)
-      const currentHour = new Date().getHours()
+      const now = Date.now()
 
-      // 檢查是否需要重置
-      if (record.lastResetHour !== currentHour) {
-        console.log(`🔄 重置 rate limit (新小時開始)`)
-        await this.resetUserRecord(uid, currentHour)
+      // Check if window has expired (using timestamp sliding window)
+      const windowExpired = now - record.windowStart > this.config.windowMs
+      if (windowExpired) {
+        console.log(`[RateLimit] Window expired, resetting`)
+        await this.resetUserRecord(uid, now)
         return this.createResult(true, this.config.maxRequests - 1)
       }
 
-      // 檢查是否超過限制
-      if (record.hourlyCount >= this.config.maxRequests) {
-        console.log(`🚫 Rate limit 超出: ${uid} (${record.hourlyCount}/${this.config.maxRequests})`)
-        return this.createLimitExceededResult()
+      // Check if limit exceeded
+      if (record.count >= this.config.maxRequests) {
+        console.log(`[RateLimit] Limit exceeded: ${uid} (${record.count}/${this.config.maxRequests})`)
+        return this.createLimitExceededResult(record.windowStart)
       }
 
-      // 允許請求
-      const remaining = this.config.maxRequests - record.hourlyCount - 1
-      console.log(`✅ 允許請求: ${uid} (${record.hourlyCount}/${this.config.maxRequests})`)
-      return this.createResult(true, remaining)
+      // Allow request
+      const remaining = this.config.maxRequests - record.count - 1
+      console.log(`[RateLimit] Allowed: ${uid} (${record.count}/${this.config.maxRequests})`)
+      return this.createResult(true, remaining, record.windowStart)
     } catch (error) {
-      console.error('Rate limit 檢查失敗:', error)
-      // 失敗時允許請求 (避免阻擋合法使用者)
+      console.error('[RateLimit] Check failed:', error)
+      // Allow request on failure (avoid blocking legitimate users)
       return this.createResult(true, this.config.maxRequests)
     }
   }
 
   /**
-   * 遞增請求計數
+   * Increment request count
    */
   async increment(uid: string, endpoint: string = '/api/generate'): Promise<void> {
     try {
       const record = await this.getUserRecord(uid)
-      const currentHour = new Date().getHours()
+      const now = Date.now()
 
-      // 如果進入新小時，重置計數
-      if (record.lastResetHour !== currentHour) {
-        await this.resetUserRecord(uid, currentHour)
+      // If window expired, reset count
+      const windowExpired = now - record.windowStart > this.config.windowMs
+      if (windowExpired) {
+        await this.resetUserRecord(uid, now)
         return
       }
 
-      // 更新記錄
-      record.hourlyCount++
+      // Update record
+      record.count++
       record.history.push({
-        timestamp: Date.now(),
+        timestamp: now,
         endpoint
       })
 
-      // 只保留最近 50 筆記錄
+      // Keep only last 50 records
       if (record.history.length > 50) {
         record.history = record.history.slice(-50)
       }
 
       await this.saveUserRecord(uid, record)
-      console.log(`📈 Rate limit 更新: ${uid} (${record.hourlyCount}/${this.config.maxRequests})`)
+      console.log(`[RateLimit] Updated: ${uid} (${record.count}/${this.config.maxRequests})`)
 
     } catch (error) {
-      console.error('Rate limit 遞增失敗:', error)
+      console.error('[RateLimit] Increment failed:', error)
     }
   }
 
   /**
-   * 獲取使用者統計
+   * Get user statistics
    */
   async getUserStats(uid: string): Promise<{
-    hourlyCount: number
+    currentCount: number
     totalRequests: number
     recentRequests: number[]
+    windowStart: number
+    windowEnd: number
   }> {
     const record = await this.getUserRecord(uid)
-    const currentHour = new Date().getHours()
+    const now = Date.now()
 
-    // 計算最近一小時的請求
-    const oneHourAgo = Date.now() - this.config.windowMs
+    // Calculate requests in current window
+    const windowExpired = now - record.windowStart > this.config.windowMs
     const recentRequests = record.history
-      .filter(req => req.timestamp > oneHourAgo)
+      .filter(req => req.timestamp > now - this.config.windowMs)
       .map(req => req.timestamp)
 
     return {
-      hourlyCount: currentHour === record.lastResetHour ? record.hourlyCount : 0,
+      currentCount: windowExpired ? 0 : record.count,
       totalRequests: record.history.length,
-      recentRequests
+      recentRequests,
+      windowStart: record.windowStart,
+      windowEnd: record.windowStart + this.config.windowMs
     }
   }
 
@@ -155,38 +161,32 @@ export class RateLimiter {
   private async getUserRecord(uid: string): Promise<RateLimitRecord> {
     try {
       const storageKey = `${this.storagePrefix}${uid}`
-      
+
       if (this.isBrowser()) {
-        // 瀏覽器環境：使用 localStorage
+        // Browser environment: use localStorage
         const stored = localStorage.getItem(storageKey)
 
         if (stored) {
           const record = JSON.parse(stored) as RateLimitRecord
-          
-          // 驗證記錄格式
+
+          // Validate record format
           if (this.isValidRecord(record)) {
             return record
           }
         }
       } else {
-        // 伺服器環境：使用記憶體快取
+        // Server environment: use memory cache
         const record = this.memoryCache.get(storageKey)
         if (record && this.isValidRecord(record)) {
           return record
         }
       }
 
-      // 建立新記錄
-      const currentHour = new Date().getHours()
-      return {
-        uid,
-        hourlyCount: 0,
-        lastResetHour: currentHour,
-        history: []
-      }
+      // Create new record
+      return this.createNewRecord(uid)
 
     } catch (error) {
-      console.warn('讀取 rate limit 記錄失敗，建立新記錄:', error)
+      console.warn('[RateLimit] Failed to read record, creating new:', error)
       return this.createNewRecord(uid)
     }
   }
@@ -194,24 +194,24 @@ export class RateLimiter {
   private async saveUserRecord(uid: string, record: RateLimitRecord): Promise<void> {
     try {
       const storageKey = `${this.storagePrefix}${uid}`
-      
+
       if (this.isBrowser()) {
-        // 瀏覽器環境：使用 localStorage
+        // Browser environment: use localStorage
         localStorage.setItem(storageKey, JSON.stringify(record))
       } else {
-        // 伺服器環境：使用記憶體快取
+        // Server environment: use memory cache
         this.memoryCache.set(storageKey, record)
       }
     } catch (error) {
-      console.error('儲存 rate limit 記錄失敗:', error)
+      console.error('[RateLimit] Failed to save record:', error)
     }
   }
 
-  private async resetUserRecord(uid: string, currentHour: number): Promise<void> {
+  private async resetUserRecord(uid: string, windowStart: number): Promise<void> {
     const record: RateLimitRecord = {
       uid,
-      hourlyCount: 0,
-      lastResetHour: currentHour,
+      count: 0,
+      windowStart,
       history: []
     }
     await this.saveUserRecord(uid, record)
@@ -221,53 +221,59 @@ export class RateLimiter {
     return (
       record &&
       typeof record.uid === 'string' &&
-      typeof record.hourlyCount === 'number' &&
-      typeof record.lastResetHour === 'number' &&
-      Array.isArray(record.history) &&
-      record.lastResetHour >= 0 && record.lastResetHour <= 23
+      typeof record.count === 'number' &&
+      typeof record.windowStart === 'number' &&
+      Array.isArray(record.history)
     )
   }
 
   private createNewRecord(uid: string): RateLimitRecord {
-    const currentHour = new Date().getHours()
     return {
       uid,
-      hourlyCount: 0,
-      lastResetHour: currentHour,
+      count: 0,
+      windowStart: Date.now(),
       history: []
     }
   }
 
-  private createResult(allowed: boolean, remaining: number): RateLimitResult {
-    const resetAt = this.getNextResetTime()
+  private createResult(allowed: boolean, remaining: number, windowStart?: number): RateLimitResult {
+    const resetAt = this.getNextResetTime(windowStart)
     return {
       allowed,
       remaining: Math.max(0, remaining),
       resetAt,
-      ...(!allowed && { retryAfter: this.calculateRetryAfter() })
+      ...(!allowed && { retryAfter: this.calculateRetryAfter(windowStart) })
     }
   }
 
-  private createLimitExceededResult(): RateLimitResult {
+  private createLimitExceededResult(windowStart: number): RateLimitResult {
     return {
       allowed: false,
       remaining: 0,
-      resetAt: this.getNextResetTime(),
-      retryAfter: this.calculateRetryAfter()
+      resetAt: this.getNextResetTime(windowStart),
+      retryAfter: this.calculateRetryAfter(windowStart)
     }
   }
 
-  private getNextResetTime(): Date {
+  private getNextResetTime(windowStart?: number): Date {
+    if (windowStart) {
+      // Calculate reset time based on window start + window duration
+      return new Date(windowStart + this.config.windowMs)
+    }
+    // Fallback: reset at next hour boundary
     const now = new Date()
-    const nextHour = new Date(now.setHours(now.getHours() + 1, 0, 0, 0))
-    return nextHour
+    return new Date(now.getTime() + this.config.windowMs)
   }
 
-  private calculateRetryAfter(): number {
-    const now = new Date()
-    const minutesUntilNextHour = 60 - now.getMinutes()
-    const secondsUntilNextHour = minutesUntilNextHour * 60 - now.getSeconds()
-    return secondsUntilNextHour
+  private calculateRetryAfter(windowStart?: number): number {
+    if (windowStart) {
+      // Calculate seconds until window expires
+      const windowEnd = windowStart + this.config.windowMs
+      const secondsRemaining = Math.ceil((windowEnd - Date.now()) / 1000)
+      return Math.max(0, secondsRemaining)
+    }
+    // Fallback: return full window duration in seconds
+    return Math.ceil(this.config.windowMs / 1000)
   }
 }
 
@@ -348,7 +354,7 @@ export function withRateLimit(
       return response
 
     } catch (error) {
-      console.error('Rate limit middleware 錯誤:', error)
+      console.error('[RateLimit] Middleware error:', error)
       // 失敗時允許繼續執行，避免阻擋合法請求
       return handler(...args)
     }

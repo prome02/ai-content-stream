@@ -1,28 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
 import EventTrackingManager from '@/lib/event-tracking'
+import { validateRequest } from '@/lib/api-utils'
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { 
-      uid, 
-      content_id, 
-      action, 
-      old_score, 
+    const {
+      uid,
+      content_id,
+      action,
+      old_score,
       new_score,
       variant,
       config
     } = body
 
-    // 參數驗證
-    if (!uid) {
-      return NextResponse.json(
-        { error: '缺少使用者 ID (uid)' },
-        { status: 400 }
-      )
+    // Validate uid
+    const validationError = validateRequest(body)
+    if (validationError) {
+      return validationError
     }
 
-    console.log('📊 事件追蹤 API 呼叫:', { uid, content_id, action, variant })
+    console.log('[EventTrack] API called:', { uid, content_id, action, variant })
 
     // 計算分數變化
     const delta = new_score - old_score
@@ -69,7 +68,7 @@ export async function POST(req: NextRequest) {
     })
 
   } catch (error) {
-    console.error('事件追蹤 API 錯誤:', error)
+    console.error('[EventTrack] API error:', error)
     
     return NextResponse.json(
       {
@@ -115,7 +114,7 @@ export async function GET(req: NextRequest) {
     })
 
   } catch (error) {
-    console.error('獲取事件數據失敗:', error)
+    console.error('[EventTrack] Failed to get event data:', error)
     
     return NextResponse.json(
       {
