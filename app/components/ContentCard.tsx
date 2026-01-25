@@ -14,13 +14,6 @@ interface ContentCardProps {
   currentUserId?: string
 }
 
-interface ContentCardProps {
-  content: ContentItem
-  onLike: (contentId: string) => void
-  onDislike: (contentId: string) => void
-  currentUserId?: string
-}
-
 export default function ContentCard({ content, onLike, onDislike, currentUserId }: ContentCardProps) {
   const [liked, setLiked] = useState(false)
   const [disliked, setDisliked] = useState(false)
