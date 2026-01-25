@@ -70,7 +70,7 @@ class PromptBuilder {
     const hashtags = this.buildHashtags(userPreferences.interests)
     
     return JSON.stringify({
-      model: 'gemma3:4b',
+      model: 'gemma3:12b-cloud',
       messages: [
         {
           role: 'system',

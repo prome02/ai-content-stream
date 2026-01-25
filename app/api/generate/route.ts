@@ -16,8 +16,8 @@ import type {
 const rateLimiter = new RateLimiter({ maxRequests: 20, windowMs: 60 * 60 * 1000 })
 const ollamaClient = new OllamaClient({
   baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-  defaultModel: process.env.OLLAMA_MODEL || 'gemma3:4b',
-  timeout: 60000, // 60 seconds for LLM generation
+  defaultModel: process.env.OLLAMA_MODEL || 'gemma3:12b-cloud',
+  timeout: 90000, // 90 seconds for cloud LLM generation
   maxRetries: 2
 })
 

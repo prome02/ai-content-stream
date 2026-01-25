@@ -30,12 +30,22 @@ NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-ABCD1234
 ```env
 # AI 生成模式設定
 ## true: 使用模擬資料 (預設開發模式)
-## false: 使用真實 LLM (需要配置 OLLAMA_API_KEY)
+## false: 使用真實 LLM
 NEXT_PUBLIC_USE_MOCK_DATA=true
 
-# Ollama API (真實 LLM 模式時需要)
+# Ollama 設定 (真實 LLM 模式時需要)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=gemma3:12b-cloud
 OLLAMA_API_KEY=your_ollama_api_key_here
 ```
+
+#### 可用的 Ollama 模型
+| 模型 | 說明 |
+|------|------|
+| `gemma3:12b-cloud` | 預設，雲端版本，品質較佳 |
+| `gemma3:4b` | 本地輕量版，速度較快 |
+| `qwen2.5:7b` | 中文能力較強 |
+| `llama3.1:8b` | 綜合能力較佳 |
 
 #### Firebase Emulator 控制
 ```env
