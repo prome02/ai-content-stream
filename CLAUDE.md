@@ -50,8 +50,9 @@ app/
 └── page.tsx                # Landing/login page
 
 lib/
-├── firebase.ts             # Mock Firebase (development)
+├── api-utils.ts            # API validation utilities
 ├── real-firebase.ts        # Real Firebase SDK with Emulator support
+├── ollama-client.ts        # Ollama LLM client
 ├── prompt-builder.ts       # LLM prompt construction
 ├── mock-data.ts            # Mock content for development
 ├── quality-scoring.ts      # Content quality algorithms
@@ -92,7 +93,7 @@ The `/api/generate` endpoint supports multiple sources:
 ### Rate Limiting
 
 - 20 requests per hour per user
-- Resets at the start of each hour
+- Uses sliding window (timestamp-based, not hour boundary)
 - Falls back to mock content when exceeded
 
 ## Code Conventions
@@ -102,3 +103,15 @@ The `/api/generate` endpoint supports multiple sources:
 - No emojis in code (emojis in mock content are acceptable)
 - Use繁體中文 for user-facing messages and comments
 - Types are defined in `types/index.ts`
+
+### TypeScript Tips
+
+- Use `as const` for literal type inference: `style: 'casual' as const`
+- API validation: use `lib/api-utils.ts` `validateRequest()` function
+
+### Testing MVP
+
+```bash
+ollama serve                                  # Start Ollama
+NEXT_PUBLIC_USE_MOCK_DATA=false npm run dev   # Real LLM mode
+```
