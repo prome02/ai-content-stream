@@ -1,30 +1,42 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 
 interface UseInfiniteScrollOptions {
   threshold?: number  // 觸發載入的偏移量 (0-1)
   rootMargin?: string // 觀察區域的邊界
   enabled?: boolean   // 是否啟用無限滾動
-  externalLoading?: boolean // 外部載入狀態，用於同步
+  debounceMs?: number // 防抖時間（毫秒）
 }
 
 /**
  * 無限滾動 hook - 偵測特定元素進入視區時觸發載入更多內容
+ * 使用單一 IntersectionObserver 機制，避免重複觸發
  */
 export function useInfiniteScroll(
   onLoadMore: () => void,
   options: UseInfiniteScrollOptions = {}
 ) {
-  const { threshold = 0.1, rootMargin = '0px', enabled = true } = options
+  const {
+    threshold = 0.1,
+    rootMargin = '200px', // 提前 200px 觸發
+    enabled = true,
+    debounceMs = 2000  // 2 秒防抖
+  } = options
+
   const sentinelRef = useRef<HTMLDivElement>(null)
   const observerRef = useRef<IntersectionObserver | null>(null)
   const isLoadingRef = useRef(false)
-  
+  const lastTriggerTimeRef = useRef(0)
+
   // 重置載入狀態（供外部調用）
-  const resetLoading = () => {
+  const resetLoading = useCallback(() => {
     isLoadingRef.current = false
-  }
+  }, [])
+
+  // 使用 ref 保存 onLoadMore，避免 observer 重新創建
+  const onLoadMoreRef = useRef(onLoadMore)
+  onLoadMoreRef.current = onLoadMore
 
   useEffect(() => {
     if (!enabled || !sentinelRef.current) return
@@ -33,29 +45,33 @@ export function useInfiniteScroll(
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries
-        
-        // 如果 sentinel 元素可見、未在載入狀態，且不是首次可見
+        const now = Date.now()
+
+        // 防抖檢查：距離上次觸發必須超過 debounceMs
+        const timeSinceLastTrigger = now - lastTriggerTimeRef.current
+
         if (
-          entry.isIntersecting && 
+          entry.isIntersecting &&
           !isLoadingRef.current &&
-          entry.intersectionRatio > threshold
+          timeSinceLastTrigger > debounceMs
         ) {
           isLoadingRef.current = true
-          console.log('📜 無限滾動觸發：載入更多內容')
-          
-          // 確保非同步操作完成後重置狀態
-          onLoadMore()
-          
-          // 設定一個安全的重置時機（避免過快連續觸發）
+          lastTriggerTimeRef.current = now
+          console.log('Infinite scroll triggered: loading more content')
+
+          // 調用載入函數
+          onLoadMoreRef.current()
+
+          // 設定安全的重置時機
           setTimeout(() => {
             isLoadingRef.current = false
-          }, 1000)
+          }, debounceMs)
         }
       },
       {
         threshold,
         rootMargin,
-        root: null // 使用視窗作為參考
+        root: null
       }
     )
 
@@ -65,37 +81,11 @@ export function useInfiniteScroll(
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect()
+        observerRef.current = null
       }
     }
-  }, [enabled, threshold, rootMargin, onLoadMore])
-
-  // 同時在滾動到底部時也觸發（備援機制）
-  useEffect(() => {
-    if (!enabled) return
-
-    const handleScroll = () => {
-      const scrollTop = window.scrollY || document.documentElement.scrollTop
-      const scrollHeight = document.documentElement.scrollHeight
-      const clientHeight = window.innerHeight
-      
-      // 距離底部 500px 時觸發
-      const nearBottom = scrollHeight - scrollTop - clientHeight < 500
-      
-      if (nearBottom && !isLoadingRef.current) {
-        isLoadingRef.current = true
-        console.log('📜 滾動到底部觸發：載入更多內容')
-        
-        onLoadMore()
-        
-        setTimeout(() => {
-          isLoadingRef.current = false
-        }, 1000)
-      }
-    }
-
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [enabled, onLoadMore])
+  }, [enabled, threshold, rootMargin, debounceMs])
+  // 注意：移除 onLoadMore 依賴，改用 ref
 
   return {
     sentinelRef,

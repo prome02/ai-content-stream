@@ -18,10 +18,12 @@ export default function Home() {
           const preferences = await getUserPreferences(user.uid)
           if (preferences?.interests && preferences.interests.length > 0) {
             // 已經有興趣偏好，直接跳轉到 feed
-            router.push('/feed')
+            // 使用 replace 防止留下登入頁面在歷史堆疊，避免與 Feed 頁面競爭焦點
+            router.replace('/feed')
           } else {
             // 還沒有興趣偏好，跳轉到 onboarding
-            router.push('/onboarding/interests')
+            // 使用 replace 直接切換頁面
+            router.replace('/onboarding/interests')
           }
         } catch (error) {
           console.error('檢查使用者偏好失敗:', error)
@@ -99,24 +101,24 @@ export default function Home() {
               <button
                 onClick={async () => {
                   console.log('🟡 開始 Firebase Emulator 快速測試登入...')
-                  
+
                   try {
                     // 直接使用 Firebase 的 Google 登入功能
                     // 在 Emulator 模式下，signInWithPopup 會模擬成功登入
                     console.log('🔄 使用 Firebase Google 登入...')
                     await signInWithGoogle()
                     console.log('✅ 已觸發 Firebase Google 登入')
-                    
+
                   } catch (error: any) {
                     console.error('❌ Firebase Emulator 登入失敗:', error)
-                    
+
                     // 檢查 Emulator 是否在運行
                     try {
                       const emulatorCheck = await fetch('http://localhost:9099', {
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' }
                       })
-                      
+
                       if (emulatorCheck.ok) {
                         console.log('✅ Firebase Auth Emulator 正在運行')
                         alert(`Firebase Auth Emulator 登入失敗:\n${error.message}\n\n請確保:\n1. Firebase Emulator 正在運行 (firebase emulators:start)\n2. 瀏覽器已允許彈出視窗`)
