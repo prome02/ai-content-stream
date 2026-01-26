@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/hooks/useAuth'
 import ContentCard from '@/app/components/ContentCard'
@@ -15,27 +15,27 @@ import type { ContentItem } from '@/types'
 async function fetchFeedContent(userId: string, count: number = 10): Promise<ContentItem[]> {
   try {
     console.log(`📦 請求 Feed 內容: ${userId}, ${count} 則`)
-    
+
     const response = await fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uid: userId, count })
     })
-    
+
     if (!response.ok) {
       console.warn('API 生成失敗，使用模擬資料')
       return MOCK_CONTENT_ITEMS.slice(0, count)
     }
-    
+
     const data = await response.json()
-    
+
     if (data.success) {
       console.log(`✅ 成功生成 ${data.contents?.length || 0} 則內容 (來源: ${data.source})`)
       return data.contents || []
     }
-    
+
     return MOCK_CONTENT_ITEMS.slice(0, count)
-    
+
   } catch (error) {
     console.error('Feed 內容載入失敗:', error)
     return MOCK_CONTENT_ITEMS.slice(0, count)
@@ -45,9 +45,9 @@ async function fetchFeedContent(userId: string, count: number = 10): Promise<Con
 // 模擬主題標籤（從興趣生成）
 function getUserHashtags(interests: string[]): string[] {
   if (interests.length === 0) return ['#探索', '#新發現']
-  
+
   return interests.map(interest => {
-    switch(interest) {
+    switch (interest) {
       case 'ai': return '#人工智慧'
       case 'tech': return '#科技趨勢'
       case 'learning': return '#學習成長'
@@ -92,11 +92,10 @@ function getSourceLabel(source: string): string {
 export default function FeedPage() {
   const { user } = useAuth()
   const router = useRouter()
-  
+
   const [feedItems, setFeedItems] = useState<ContentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
-  const [page, setPage] = useState(1)
   const [userHashtags, setUserHashtags] = useState<string[]>([])
   const [activeFilter, setActiveFilter] = useState<'personalized' | 'trending'>('personalized')
   const [contentSource, setContentSource] = useState<'cache' | 'ollama' | 'fallback' | 'mock'>('cache')
@@ -104,37 +103,63 @@ export default function FeedPage() {
   const [showRateLimitWarning, setShowRateLimitWarning] = useState(false)
   const [refreshCount, setRefreshCount] = useState(0)
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null)
+  const [hasMore, setHasMore] = useState(true)
 
-  const loadFeed = useCallback(async () => {
+  // 使用 ref 追蹤載入狀態，避免閉包問題
+  const isLoadingRef = useRef(false)
+  const pageRef = useRef(1)
+
+  const loadFeed = useCallback(async (isInitial = false) => {
     if (!user) return
-    
+
+    // 防止重複調用
+    if (isLoadingRef.current) {
+      console.log('Already loading, skipping...')
+      return
+    }
+
+    isLoadingRef.current = true
     setLoading(true)
+
     try {
       const newItems = await fetchFeedContent(user.uid, 10)
-      
-      if (page === 1) {
+
+      if (isInitial || pageRef.current === 1) {
         setFeedItems(newItems)
+        pageRef.current = 1
       } else {
         setFeedItems(prev => [...prev, ...newItems])
       }
-      
-      // 如果還有更多內容，增加頁碼（模擬）
+
+      // 如果還有更多內容，增加頁碼
       if (newItems.length === 10) {
-        setPage(prev => prev + 1)
+        pageRef.current += 1
+        setHasMore(true)
+      } else {
+        setHasMore(false)
       }
     } catch (error) {
-      console.error('載入 feed 失敗:', error)
+      console.error('Failed to load feed:', error)
     } finally {
       setLoading(false)
+      isLoadingRef.current = false
     }
-  }, [user, page])
+  }, [user])  // 移除 page 依賴，使用 ref
+
+  // 追蹤是否已初始化，避免重複載入
+  const hasInitializedRef = useRef(false)
 
   useEffect(() => {
     if (!user) {
-      router.push('/')
+      // 使用 replace 防止登入頁面保留在歷史堆疊，避免 Feed 畫面閃爍
+      router.replace('/')
       return
     }
-    
+
+    // 避免重複初始化
+    if (hasInitializedRef.current) return
+    hasInitializedRef.current = true
+
     // 載入使用者偏好
     const loadUserPreferences = async () => {
       if (user) {
@@ -143,26 +168,45 @@ export default function FeedPage() {
         setUserHashtags(getUserHashtags(interests))
       }
     }
-    
+
     loadUserPreferences()
-    loadFeed() // 初始載入
+    loadFeed(true) // 初始載入
   }, [user, router, loadFeed])
 
-  // 當 refreshCount 或 activeFilter 變化時重新載入 feed
-  useEffect(() => {
-    if (user) {
-      loadFeed()
-    }
-  }, [refreshCount, activeFilter])
+  // 當 refreshCount 或 activeFilter 變化時重新載入 feed（跳過初始值）
+  const prevRefreshCountRef = useRef(refreshCount)
+  const prevActiveFilterRef = useRef(activeFilter)
 
-  // 無限滾動 hook - 使用 useCallback 避免重新渲染時重新建立 hook
+  useEffect(() => {
+    // 跳過初次 mount
+    if (
+      prevRefreshCountRef.current === refreshCount &&
+      prevActiveFilterRef.current === activeFilter
+    ) {
+      return
+    }
+
+    prevRefreshCountRef.current = refreshCount
+    prevActiveFilterRef.current = activeFilter
+
+    if (user) {
+      pageRef.current = 1
+      loadFeed(true)
+    }
+  }, [refreshCount, activeFilter, user, loadFeed])
+
+  // 無限滾動載入更多的回調 - 使用穩定的 ref 避免重複建立
+  const loadMoreRef = useRef(() => {})
+  loadMoreRef.current = () => {
+    if (!loading && !generating && hasMore) {
+      loadFeed(false)
+    }
+  }
+
+  // 無限滾動 hook
   const { sentinelRef } = useInfiniteScroll(
-    useCallback(() => {
-      if (!loading && !generating) {
-        loadFeed()
-      }
-    }, [loading, generating, loadFeed]),
-    { enabled: !loading && !generating } // 只有不在載入時啟用
+    useCallback(() => loadMoreRef.current(), []),
+    { enabled: !loading && !generating && hasMore }
   )
 
   const handleLike = async (contentId: string) => {
@@ -191,32 +235,32 @@ export default function FeedPage() {
 
   const handleRefresh = async () => {
     if (!user) return
-    
+
     setGenerating(true)
-    setPage(1)
+    pageRef.current = 1
     setFeedItems([])
     setRefreshCount(prev => prev + 1)
-    
+
     try {
       console.log(`🔄 重新生成內容: ${user.uid}, 嘗試 ${activeFilter} 模式`)
-      
+
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          uid: user.uid, 
+        body: JSON.stringify({
+          uid: user.uid,
           count: 15,
           mode: 'default'
         })
       })
-      
+
       const data = await response.json()
-      
+
       if (data.success) {
         console.log(`🆕 成功重新生成 ${data.contents?.length || 0} 則內容`)
         setFeedItems(data.contents || [])
         setContentSource(data.source)
-        
+
         if (data.rateLimit) {
           setRateLimitInfo(data.rateLimit)
           setShowRateLimitWarning(data.rateLimit.remaining < 5)
@@ -227,12 +271,12 @@ export default function FeedPage() {
       }
     } catch (error) {
       console.error('重新生成失敗:', error)
-      
+
       // 降級到模擬資料
       const fallbackContent = MOCK_CONTENT_ITEMS
         .sort(() => Math.random() - 0.5)
         .slice(0, 15)
-      
+
       setFeedItems(fallbackContent)
       setContentSource('fallback')
     } finally {
@@ -284,23 +328,23 @@ export default function FeedPage() {
                 </div>
               )}
               {contentSource === 'cache' && (
-                  <div className="flex items-center gap-1 text-blue-600">
-                    <Zap className="h-4 w-4" />
-                    <span className="font-medium">快取命中</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-1 text-blue-600">
+                  <Zap className="h-4 w-4" />
+                  <span className="font-medium">快取命中</span>
+                </div>
+              )}
               {contentSource === 'fallback' && (
-                  <div className="flex items-center gap-1 text-orange-600">
-                    <Filter className="h-4 w-4" />
-                    <span className="font-medium">降級模式</span>
-                  </div>
-                )}
+                <div className="flex items-center gap-1 text-orange-600">
+                  <Filter className="h-4 w-4" />
+                  <span className="font-medium">降級模式</span>
+                </div>
+              )}
             </div>
 
             {rateLimitInfo && (
               <div className={`text-xs ${rateLimitInfo.remaining < 5 ? 'text-red-500' : 'text-gray-500'}`}>
-              {rateLimitInfo.remaining} / 20 次 (可用)
-            </div>
+                {rateLimitInfo.remaining} / 20 次 (可用)
+              </div>
             )}
           </div>
 
@@ -333,21 +377,19 @@ export default function FeedPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setActiveFilter('personalized')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                activeFilter === 'personalized'
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeFilter === 'personalized'
                   ? 'bg-blue-500 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+                }`}
             >
               個人化推薦
             </button>
             <button
               onClick={() => setActiveFilter('trending')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                activeFilter === 'trending'
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeFilter === 'trending'
                   ? 'bg-purple-500 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+                }`}
             >
               創意創意模式
             </button>
@@ -368,8 +410,8 @@ export default function FeedPage() {
         <div className="w-2/3">
           {loading && feedItems.length === 0 ? (
             <div className="text-center py-12">
-              <div 
-                className={`animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto ${generating ? 'text-purple-500 border-purple-500' : ''}`} 
+              <div
+                className={`animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto ${generating ? 'text-purple-500 border-purple-500' : ''}`}
               />
               <p className="mt-4 text-gray-600">
                 {generating ? 'AI 正在為你生成個人化內容...' : '載入你的個人化內容...'}
@@ -407,8 +449,8 @@ export default function FeedPage() {
               {/* 載入更多指示器 */}
               {loading && feedItems.length > 0 && (
                 <div className="text-center py-8">
-                  <div 
-                    className={`animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto ${generating ? 'text-purple-500 border-purple-500' : ''}`} 
+                  <div
+                    className={`animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto ${generating ? 'text-purple-500 border-purple-500' : ''}`}
                   />
                   <p className="mt-2 text-sm text-gray-500">
                     {generating ? 'AI 生成中...' : '載入更多內容...'}
@@ -437,21 +479,21 @@ export default function FeedPage() {
             </>
           )}
         </div>
-        
+
         {/* 右側：A/B 測試狀態 (1/3) */}
         <div className="w-1/3">
           {user && (
             <div className="sticky top-6 space-y-6">
               {/* A/B 測試狀態 */}
               <ABTestingStatus uid={user.uid} />
-              
+
               {/* 數據源說明 */}
               <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
                   <BarChart3 className="h-5 w-5 text-gray-600" />
                   <h3 className="font-medium text-gray-900">品質評分參數</h3>
                 </div>
-                
+
                 <div className="space-y-2 text-sm text-gray-600">
                   <div className="flex justify-between">
                     <span>點讚分數:</span>
@@ -471,7 +513,7 @@ export default function FeedPage() {
                   </div>
                 </div>
               </div>
-              
+
               {/* 測試目標 */}
               <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                 <h3 className="font-medium text-gray-900 mb-3">A/B 測試目標</h3>
