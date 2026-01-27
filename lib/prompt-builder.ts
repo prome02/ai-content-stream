@@ -1,4 +1,6 @@
-import { INTERESTS_LIST } from '@/lib/interests'
+import { type InterestCategory } from '@/types'
+import { formatNewsForPrompt, extractKeywordsFromNews, type NewsItem } from './news-fetcher'
+import { selectModules, getDefaultBehavior, type UserBehavior, type SelectedModules } from './prompt-selector'
 
 // 互動資料結構
 interface InteractionData {
@@ -19,25 +21,38 @@ interface PromptContext {
   timeOfDay?: 'morning' | 'afternoon' | 'evening' | 'night'
   mode?: 'default' | 'creative' | 'focused'
   diversityScore?: number
+  depthLevel?: DepthLevel
 }
 
-// 興趣轉換成主題標籤
+// 內容深度等級
+export const DEPTH_LEVELS = {
+  brief: {
+    id: 'brief',
+    wordCount: { min: 200, max: 300 },
+    description: '簡短摘要，快速瀏覽'
+  },
+  standard: {
+    id: 'standard',
+    wordCount: { min: 400, max: 600 },
+    description: '標準長度，適中深度'
+  },
+  deep: {
+    id: 'deep',
+    wordCount: { min: 800, max: 1200 },
+    description: '深度分析，詳細內容'
+  }
+} as const
+
+export type DepthLevel = keyof typeof DEPTH_LEVELS
+
+// 興趣轉換成主題標籤（更新為 6 個 Google 新聞友好分類）
 const INTEREST_TO_HASHTAG: Record<string, string[]> = {
-  'ai': ['#人工智慧', '#AI技術'],
-  'tech': ['#科技趨勢', '#程式設計'],
-  'learning': ['#學習成長', '#知識傳承'],
-  'business': ['#創業投資', '#商業思維'],
-  'health': ['#健康生活', '#身心平衡'],
-  'travel': ['#旅行探索', '#文化體驗'],
-  'food': ['#美食探索', '#飲食文化'],
-  'music': ['#音樂藝術', '#旋律人生'],
-  'movies': ['#影視娛樂', '#故事敘事'],
-  'anime': ['#動漫文化', '#二次元'],
-  'sports': ['#運動健身', '#競技精神'],
-  'games': ['#遊戲電競', '#娛樂科技'],
-  'design': ['#設計美學', '#創意視覺'],
-  'science': ['#科學探索', '#研究發現'],
-  'fashion': ['#時尚潮流', '#風格穿搭']
+  'tech': ['#科技新知', '#AI趨勢', '#軟體開發', '#網路科技'],
+  'business': ['#商業財經', '#投資理財', '#股市分析', '#經濟趨勢'],
+  'health': ['#健康生活', '#養生保健', '#運動健身', '#飲食營養'],
+  'travel': ['#旅遊探索', '#自由行', '#景點推薦', '#文化體驗'],
+  'sports': ['#運動體育', '#賽事新聞', '#球隊分析', '#球員動態'],
+  'fashion': ['#時尚潮流', '#穿搭技巧', '#美妝造型', '#品牌故事']
 }
 
 // 時間情境對應
@@ -51,52 +66,38 @@ const TIME_CONTEXT: Record<string, string> = {
 class PromptBuilder {
   private VERSION = 'v1.0'
   
+  private getDepthInstruction(depth: DepthLevel = 'standard'): string {
+    const config = DEPTH_LEVELS[depth]
+    return `請撰寫 ${config.wordCount.min}-${config.wordCount.max} 字的內容。${config.description}。`
+  }
+
   /**
    * 建構完整的 prompt
    */
   build(context: PromptContext): string {
+    // 內部轉換為 ModularPromptContext，保持向下相容
     const {
       userPreferences,
       recentInteractions = [],
       timeOfDay = this.getCurrentTimeOfDay(),
       mode = 'default',
-      diversityScore = 0.5
+      diversityScore = 0.5,
+      depthLevel = 'standard'
     } = context
 
-    // 提取用戶的興趣與習慣
-    const emphasizedTopics = this.extractLikedTopics(recentInteractions)
-    const avoidedTopics = this.extractDislikedTopics(recentInteractions)
-    
-    const hashtags = this.buildHashtags(userPreferences.interests)
-    
-    return JSON.stringify({
-      model: 'gemma3:12b-cloud',
-      messages: [
-        {
-          role: 'system',
-          content: this.buildSystemPrompt(
-            userPreferences,
-            emphasizedTopics,
-            avoidedTopics,
-            timeOfDay,
-            mode,
-            diversityScore,
-            hashtags
-          )
-        },
-        {
-          role: 'user',
-          content: '請生成 3 個符合以上要求的高品質短內容（每篇限 280 字元以下）。'
-        }
-      ],
-      stream: false,
-      options: {
-        temperature: this.calculateTemperature(mode, diversityScore),
-        top_p: 0.9,
-        num_predict: 800,  // ~3 篇 × 200 字元 × 額外標籤
-        repeat_penalty: 1.1
-      }
-    })
+    // 模擬預設新聞和行為（供模組化提示詞使用）
+    const modularContext: ModularPromptContext = {
+      userPreferences: {
+        interests: userPreferences.interests,
+        language: userPreferences.language || 'zh-TW'
+      },
+      news: [], // 暫時使用空新聞（應由 caller 提供，但維持相容性）
+      behavior: getDefaultBehavior(),
+      userFeedback: undefined
+    }
+
+    // 內部呼叫新的模組化提示詞建構函數
+    return this.buildModularPrompt(modularContext)
   }
 
   /**
@@ -109,7 +110,8 @@ class PromptBuilder {
     timeOfDay: string,
     mode: string,
     diversityScore: number,
-    hashtags: string[]
+    hashtags: string[],
+    depthInstruction: string
   ): string {
     const timeContext = TIME_CONTEXT[timeOfDay] || '一般日常情境'
 
@@ -120,7 +122,7 @@ class PromptBuilder {
     const diversityInstruction = this.getDiversityInstruction(diversityScore)
 
     return `
-你是一位 AI 內容創作者，專門根據使用者興趣生成個人化的短內容。
+你是一位 AI 內容創作者，專門根據使用者興趣生成個人化的內容。
 
 ## 使用者個人檔案
 
@@ -145,8 +147,8 @@ ${modeInstruction}
 
 ## 內容要求
 
-1. **格式**: Twitter/Threads 風格的短貼文
-2. **長度**: 每篇內容 280 字元以下
+1. **格式**: 豐富的文章內容，非短貼文
+2. **長度**: ${depthInstruction}
 3. **標籤**: 每篇 2-3 個相關 hashtag (${hashtags.join('、')})
 4. **表情符號**: 每篇 1-3 個相關 emoji
 5. **語氣**: ${preferences.style === 'formal' ? '正式、專業的語氣' : '輕鬆、自然的語氣'}
@@ -166,7 +168,7 @@ ${modeInstruction}
 \`\`\`json
 [
   {
-    "content": "內容文字（不超過 280 字元）",
+    "content": "內容文字",
     "hashtags": ["#標籤1", "#標籤2"],
     "emojis": ["😊", "🔥"],
     "topics": ["主題1", "主題2"],
@@ -278,27 +280,40 @@ ${modeInstruction}
       // 嘗試解析 JSON
       const parsed = JSON.parse(aiResponse)
       
-      if (!Array.isArray(parsed)) {
-        throw new Error('回應不是有效的陣列格式')
+      // 支援兩種格式：新格式（物件）和舊格式（陣列）
+      if (Array.isArray(parsed)) {
+        // 舊格式（陣列）：[{content, hashtags, emojis, topics, style}]
+        return parsed.map(item => ({
+          content: item.content || '', // 移除字數限制
+          hashtags: Array.isArray(item.hashtags) ? item.hashtags : [],
+          emojis: Array.isArray(item.emojis) ? item.emojis : [],
+          topics: Array.isArray(item.topics) ? item.topics : [],
+          style: item.style || 'casual'
+        }))
+      } else if (parsed && typeof parsed === 'object') {
+        // 新格式（物件）：{content, keywords, topics, style}
+        const contentItem = parsed
+        
+        return [{
+          content: contentItem.content || '',
+          hashtags: [], // 新格式沒有 hashtags，使用空陣列相容
+          emojis: [],   // 新格式沒有 emojis，使用空陣列相容
+          topics: Array.isArray(contentItem.topics) ? contentItem.topics : [],
+          style: contentItem.style || 'casual'
+        }]
+      } else {
+        throw new Error('回應不是有效的 JSON 格式')
       }
-      
-      // 驗證每一筆資料的格式
-      return parsed.map(item => ({
-        content: item.content?.slice(0, 280) || '',
-        hashtags: Array.isArray(item.hashtags) ? item.hashtags : [],
-        emojis: Array.isArray(item.emojis) ? item.emojis : [],
-        topics: Array.isArray(item.topics) ? item.topics : [],
-        style: item.style || 'casual'
-      }))
       
     } catch (error) {
       console.error('解析 AI 回應失敗:', error)
       
       // 嘗試從文字中提取 JSON 部分
-      const jsonMatch = aiResponse.match(/\[[\s\S]*\]/)
+      const jsonMatch = aiResponse.match(/\[[\s\S]*\]/) || aiResponse.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         try {
-          return JSON.parse(jsonMatch[0])
+          // 遞迴呼叫解析提取的 JSON
+          return this.parseResponse(jsonMatch[0])
         } catch (e) {
           console.error('二次解析失敗:', e)
         }
@@ -323,6 +338,78 @@ ${modeInstruction}
       ]
     }
   }
+
+  // 新增模組化提示詞建構方法到類別中
+  buildModularPrompt(context: ModularPromptContext): string {
+    const modules = selectModules(context.behavior)
+    const newsMaterial = formatNewsForPrompt(context.news)
+    const keywords = extractKeywordsFromNews(context.news)
+
+    const systemPrompt = `${modules.role.prompt}
+
+${modules.perspective.prompt}
+
+${modules.format.prompt}
+
+${modules.depth.prompt}
+
+請使用繁體中文撰寫。`
+
+    const userPrompt = `【用戶興趣】
+${context.userPreferences.interests.join('、')}
+
+【新聞素材】
+${newsMaterial}
+
+【可標記的關鍵字】
+以下關鍵字可以在文章中使用 {{keyword:關鍵字}} 格式標記，讓用戶可以點擊：
+${keywords.join('、')}
+
+${context.userFeedback ? `【用戶意見】
+用戶表示：「${context.userFeedback}」
+請特別針對這個方向撰寫。
+
+` : ''}
+請根據以上素材，撰寫一篇文章。
+
+輸出格式（JSON）：
+{
+  "content": "文章內容，使用 {{keyword:關鍵字}} 標記可點擊的關鍵字",
+  "keywords": ["關鍵字1", "關鍵字2"],
+  "topics": ["主題1", "主題2"],
+  "style": "casual"
+}`
+
+    // 保持與現有格式相容
+    return JSON.stringify({
+      model: process.env.OLLAMA_MODEL || 'gemma3:12b',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      options: {
+        temperature: 0.8,
+        top_p: 0.9
+      },
+      // 記錄使用的模組（供分析用）
+      _modules: {
+        role: modules.role.id,
+        perspective: modules.perspective.id,
+        format: modules.format.id,
+        depth: modules.depth.id
+      }
+    })
+  }
+}
+
+export interface ModularPromptContext {
+  userPreferences: {
+    interests: string[]
+    language: string
+  }
+  news: NewsItem[]
+  behavior: UserBehavior
+  userFeedback?: string  // 用戶的文字意見
 }
 
 export { PromptBuilder, type PromptContext, type InteractionData }

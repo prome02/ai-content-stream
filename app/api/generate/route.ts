@@ -6,10 +6,13 @@ import { getUserPreferences } from '@/lib/user-data'
 import { MOCK_CONTENT_ITEMS } from '@/lib/mock-data'
 import { OllamaClient } from '@/lib/ollama-client'
 import { validateRequest } from '@/lib/api-utils'
+import { fetchNews } from '@/lib/news-fetcher'
+import { getDefaultBehavior } from '@/lib/prompt-selector'
 import type {
   ContentItem,
   GenerateRequest,
-  GenerateResponse
+  GenerateResponse,
+  InterestCategory
 } from '@/types'
 
 // Initialize services
@@ -107,15 +110,50 @@ export async function POST(req: NextRequest) {
     const recentInteractionsCount = getRecentLikes(uid, 10)
     const diversityScore = calculateDiversityScore(uid)
     
-    const promptContext = {
-      userPreferences: userPreferences || { interests: [], language: 'zh-TW', style: 'casual' },
-      recentInteractions: [], // 暫時使用空陣列
-      timeOfDay: getTimeOfDay(),
-      mode,
-      diversityScore
+    // 抓取相關新聞
+    const interests = (userPreferences?.interests || []) as InterestCategory[]
+    const news = await fetchNews({
+      interests,
+      maxItems: 5,
+      locale: 'zh-TW'
+    })
+    
+    console.log(`[Generate] Fetched ${news.length} news items`)
+    
+    // 使用舊的或新的提示詞建構
+    let prompt = ''
+    
+    // 檢查是否有模組化提示詞功能
+    const hasModularFunction = typeof promptBuilder.buildModularPrompt === 'function'
+    
+    if (hasModularFunction) {
+      // 使用模組化提示詞建構
+      const modularPromptContext = {
+        userPreferences: {
+          interests: userPreferences?.interests || [],
+          language: 'zh-TW'
+        },
+        news,
+        behavior: getDefaultBehavior(),  // 暫時使用預設，Phase 3 會完善
+        userFeedback: undefined
+      }
+      
+      prompt = (promptBuilder as any).buildModularPrompt(modularPromptContext)
+      console.log('[Generate] Using modular prompt')
+    } else {
+      // 使用舊的提示詞建構
+      const promptContext = {
+        userPreferences: userPreferences || { interests: [], language: 'zh-TW', style: 'casual' },
+        recentInteractions: [], // 暫時使用空陣列
+        timeOfDay: getTimeOfDay(),
+        mode,
+        diversityScore
+      }
+      
+      prompt = promptBuilder.build(promptContext)
+      console.log('[Generate] Using legacy prompt')
     }
     
-    const prompt = promptBuilder.build(promptContext)
     console.log('[Generate] Prompt context:', prompt.substring(0, 200) + '...')
     
     let generatedContent: ContentItem[] = []
