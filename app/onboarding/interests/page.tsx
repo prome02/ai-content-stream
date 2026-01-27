@@ -3,9 +3,17 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/hooks/useAuth'
-import { INTERESTS_LIST } from '@/lib/interests'
 import { saveUserPreferences, getUserPreferences } from '@/lib/user-data'
 import { Check, ArrowRight, Sparkles } from 'lucide-react'
+
+const INTEREST_OPTIONS = [
+  { id: 'tech', label: '科技新知', icon: '💻', description: 'AI、軟體、網路趨勢' },
+  { id: 'business', label: '商業財經', icon: '📈', description: '投資、經濟、產業動態' },
+  { id: 'health', label: '健康生活', icon: '🏃', description: '養生、飲食、健身' },
+  { id: 'travel', label: '旅遊探索', icon: '✈️', description: '景點、旅行、文化' },
+  { id: 'sports', label: '運動體育', icon: '⚽', description: '賽事、球隊、運動員' },
+  { id: 'fashion', label: '時尚潮流', icon: '👗', description: '穿搭、美妝、品牌' },
+]
 
 export default function InterestsPage() {
   const { user } = useAuth()
@@ -98,7 +106,7 @@ export default function InterestsPage() {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-8">
-          {INTERESTS_LIST.map((interest) => {
+          {INTEREST_OPTIONS.map((interest) => {
             const isSelected = selectedInterests.includes(interest.id)
             return (
               <button
@@ -108,18 +116,16 @@ export default function InterestsPage() {
                   flex flex-col items-center justify-center p-4 rounded-xl
                   transition-all duration-200 transform hover:scale-105
                   ${isSelected 
-                    ? `${interest.color} text-white shadow-lg` 
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg' 
                     : 'bg-white text-gray-700 hover:bg-gray-50 shadow'
                   }
                 `}
               >
-                
-                <span className="font-medium text-sm">{interest.name}</span>
-                {interest.description && (
-                  <span className="text-xs mt-1 opacity-75">
-                    {interest.description}
-                  </span>
-                )}
+                <span className="text-2xl mb-2">{interest.icon}</span>
+                <span className="font-medium text-sm">{interest.label}</span>
+                <span className="text-xs mt-1 opacity-75">
+                  {interest.description}
+                </span>
                 {isSelected && (
                   <div className="mt-2">
                     <Check className="h-4 w-4" />
@@ -133,25 +139,25 @@ export default function InterestsPage() {
         <div className="bg-white rounded-2xl p-6 shadow-lg">
           <div className="mb-6">
             <h3 className="font-medium text-gray-900 mb-2">你選擇的興趣：</h3>
-            {selectedInterests.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {selectedInterests.map(interestId => {
-                  const interest = INTERESTS_LIST.find(i => i.id === interestId)
-                  if (!interest) return null
-                  return (
-                    <div
-                      key={interestId}
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-700"
-                    >
-                      
-                      <span>{interest.name}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="text-gray-500 text-sm">尚未選擇興趣</p>
-            )}
+             {selectedInterests.length > 0 ? (
+               <div className="flex flex-wrap gap-2">
+                 {selectedInterests.map(interestId => {
+                   const interest = INTEREST_OPTIONS.find(i => i.id === interestId)
+                   if (!interest) return null
+                   return (
+                     <div
+                       key={interestId}
+                       className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-700"
+                     >
+                       <span>{interest.icon}</span>
+                       <span>{interest.label}</span>
+                     </div>
+                   )
+                 })}
+               </div>
+             ) : (
+               <p className="text-gray-500 text-sm">尚未選擇興趣</p>
+             )}
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4">

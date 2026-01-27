@@ -5,6 +5,8 @@ interface Interest {
   description?: string
 }
 
+// 保留原清單供參考，但註釋掉以防止使用
+/*
 export const INTERESTS_LIST: Interest[] = [
   { id: 'ai', name: '人工智慧', color: 'bg-purple-500', description: 'AI、機器學習、深度學習' },
   { id: 'tech', name: '科技', color: 'bg-blue-500', description: '程式、軟體開發、新科技' },
@@ -22,3 +24,4 @@ export const INTERESTS_LIST: Interest[] = [
   { id: 'science', name: '科學', color: 'bg-amber-500', description: '物理、化學、生物' },
   { id: 'fashion', name: '時尚', color: 'bg-violet-500', description: '穿搭、美妝、潮流' },
 ];
+*/

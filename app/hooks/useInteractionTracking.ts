@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react'
  */
 interface InteractionEvent {
   contentId: string
-  type: 'view' | 'dwell' | 'like' | 'dislike' | 'scroll' | 'exit'
+  type: 'view' | 'dwell' | 'like' | 'dislike' | 'scroll' | 'exit' | 'skip'
   duration?: number        // 延遲時間 (毫秒)
   scrollDepth?: number     // 滾動深度 (0-1)
   viewPercentage?: number  // 可見區域百分比 (0-1)
@@ -17,6 +17,18 @@ interface InteractionEvent {
 
 // localStorage 金鑰
 const INTERACTIONS_STORAGE_KEY = 'aipcs_interaction_logs'
+
+// 無感覺判定參數
+const SKIP_THRESHOLD_MS = 3000  // 可見超過 3 秒
+const SKIP_SCROLL_THRESHOLD = 0.5  // 滾動超過 50%
+
+// 追蹤內容可見狀態
+interface ContentVisibility {
+  contentId: string
+  visibleSince: number | null
+  hasInteracted: boolean
+}
+const visibilityMap = new Map<string, ContentVisibility>()
 
 /**
  * 儲存互動事件到 localStorage
@@ -45,6 +57,11 @@ function saveInteraction(event: InteractionEvent): void {
     // 開發環境記錄
     if (process.env.NODE_ENV === 'development') {
       console.log('📊 互動事件已儲存:', event.contentId, event.type)
+      
+      // 如果是skip事件，特別記錄
+      if (event.type === 'skip') {
+        console.log('   跳過事件：可見超過3秒但無互動')
+      }
     }
   } catch (error) {
     console.warn('無法儲存互動事件:', error)
@@ -88,6 +105,17 @@ export function useInteractionTracking(
     view: false,
     dwell: false,
   })
+  const skipTrackingRef = useRef({
+    visibleSince: Date.now(),
+    hasInteracted: false,
+  })
+
+  const checkForSkip = (): boolean => {
+    if (skipTrackingRef.current.hasInteracted) return false
+
+    const visibleDuration = Date.now() - skipTrackingRef.current.visibleSince
+    return visibleDuration >= SKIP_THRESHOLD_MS
+  }
 
   useEffect(() => {
     // 查找元素
@@ -95,6 +123,12 @@ export function useInteractionTracking(
     if (!element) return
     
     elementRef.current = element
+
+    // 初始化跳過追蹤狀態
+    skipTrackingRef.current = {
+      visibleSince: Date.now(),
+      hasInteracted: false
+    }
 
     // 初始可見度追蹤
     saveInteraction({
@@ -115,6 +149,29 @@ export function useInteractionTracking(
         (entries) => {
           entries.forEach((entry) => {
             const viewPercentage = calculateViewPercentage(element)
+            
+            // 當元素進入視窗時，重置可見時間
+            if (entry.isIntersecting) {
+              skipTrackingRef.current.visibleSince = Date.now()
+            }
+            
+            // 當元素離開視窗時，檢查是否需要記錄跳過事件
+            if (!entry.isIntersecting && entry.intersectionRatio === 0 && checkForSkip()) {
+              const visibleDuration = Date.now() - skipTrackingRef.current.visibleSince
+              
+              saveInteraction({
+                contentId,
+                type: 'skip',
+                duration: visibleDuration,
+                scrollDepth: maxScrollRef.current,
+                viewPercentage: viewPercentage,
+                timestamp: new Date()
+              })
+              
+              // 重置追蹤狀態
+              skipTrackingRef.current.hasInteracted = false
+              skipTrackingRef.current.visibleSince = Date.now()
+            }
             
             // 當元素成為可見時開始追蹤停留時間
             if (entry.isIntersecting && trackDwell && !hasTrackedRef.current.dwell) {
@@ -237,6 +294,9 @@ export function useInteractionTracking(
   return {
     // 立即記錄互動事件（供外部調用）
     recordInteraction: (type: 'like' | 'dislike') => {
+      // 更新跳過追蹤狀態
+      skipTrackingRef.current.hasInteracted = true
+      
       saveInteraction({
         contentId,
         type,
