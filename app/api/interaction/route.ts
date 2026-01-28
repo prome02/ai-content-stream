@@ -3,6 +3,7 @@ import { getUserAge, getPositiveRate, getRecentLikes } from '@/lib/quality-scori
 import AbTestingManager from '@/lib/ab-testing'
 import EventTrackingManager from '@/lib/event-tracking'
 import { validateRequest, createErrorResponse } from '@/lib/api-utils'
+import { saveUserFeedback, saveKeywordClick } from '@/lib/user-data'
 
 // Mock Firestore operations
 const mockContentMap = new Map<string, any>()
@@ -42,6 +43,53 @@ export async function POST(req: NextRequest) {
         'Missing required fields: contentId, action',
         400
       )
+    }
+
+    // Extract additional data for new interaction types
+    const feedbackText: string = body.feedbackText
+    const keyword: string = body.keyword
+
+    // 處理新型態的互動類型（feedback、keyword_click）
+    if (action === 'feedback' && feedbackText) {
+      await saveUserFeedback({
+        uid,
+        contentId,
+        feedbackText,
+        timestamp: new Date()
+      })
+      console.log(`[Interaction] Feedback saved for content: ${contentId}`)
+      
+      // 直接回傳成功，不需要計算品質分數
+      return NextResponse.json({
+        success: true,
+        data: {
+          contentId,
+          action: 'feedback',
+          feedbackLength: feedbackText.length,
+          processed: true
+        }
+      })
+    }
+
+    if (action === 'keyword_click' && keyword) {
+      await saveKeywordClick({
+        uid,
+        contentId,
+        keyword,
+        timestamp: new Date()
+      })
+      console.log(`[Interaction] Keyword click saved: ${keyword}`)
+      
+      // 直接回傳成功，不需要計算品質分數
+      return NextResponse.json({
+        success: true,
+        data: {
+          contentId,
+          action: 'keyword_click',
+          keyword,
+          processed: true
+        }
+      })
     }
 
     // 2. 獲取當前內容品質分數

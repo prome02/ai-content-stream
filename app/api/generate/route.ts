@@ -8,6 +8,8 @@ import { OllamaClient } from '@/lib/ollama-client'
 import { validateRequest } from '@/lib/api-utils'
 import { fetchNews } from '@/lib/news-fetcher'
 import { getDefaultBehavior } from '@/lib/prompt-selector'
+import { getUserBehaviorStats } from '@/lib/user-data'
+import { trackContentGenerated } from '@/lib/analytics'
 import type {
   ContentItem,
   GenerateRequest,
@@ -127,6 +129,33 @@ export async function POST(req: NextRequest) {
     const hasModularFunction = typeof promptBuilder.buildModularPrompt === 'function'
     
     if (hasModularFunction) {
+      // Phase 3: 使用真實用戶行為統計
+      let behavior = getDefaultBehavior()
+      let userFeedback = undefined
+      
+      try {
+        const behaviorStats = await getUserBehaviorStats(uid)
+        console.log('[Generate] User behavior stats:', {
+          hasFeedback: behaviorStats.hasFeedback,
+          recentLikes: behaviorStats.recentLikes,
+          recentDislikes: behaviorStats.recentDislikes,
+          recentSkips: behaviorStats.recentSkips,
+          recentKeywords: behaviorStats.recentKeywords.slice(0, 3)
+        })
+        
+        behavior = {
+          avgDwellTime: behaviorStats.avgDwellTime,
+          recentLikes: behaviorStats.recentLikes,
+          recentSkips: behaviorStats.recentSkips,
+          hasFeedback: behaviorStats.hasFeedback,
+          lastKeywordClick: behaviorStats.recentKeywords[0]
+        }
+        
+        userFeedback = behaviorStats.lastFeedback
+      } catch (error) {
+        console.warn('[Generate] Failed to get user behavior stats, using default:', error)
+      }
+      
       // 使用模組化提示詞建構
       const modularPromptContext = {
         userPreferences: {
@@ -134,12 +163,28 @@ export async function POST(req: NextRequest) {
           language: 'zh-TW'
         },
         news,
-        behavior: getDefaultBehavior(),  // 暫時使用預設，Phase 3 會完善
-        userFeedback: undefined
+        behavior,  // 使用真實行為或預設
+        userFeedback
       }
       
       prompt = (promptBuilder as any).buildModularPrompt(modularPromptContext)
       console.log('[Generate] Using modular prompt')
+      
+      // 記錄模組使用資訊（如果可用）
+      try {
+        const modularInfo = {
+          news_count: news.length,
+          has_behavior: !!behavior,
+          has_feedback: !!userFeedback,
+          interests_count: userPreferences?.interests?.length || 0
+        }
+        console.log('[Generate] Modular context:', modularInfo)
+        
+        // 注意：具體模組選擇在 prompt-builder 內部處理，這裡只記錄元數據
+        // 真正的模組記錄將在生成完成後通過 analytics 處理
+      } catch (error) {
+        console.warn('[Generate] Failed to log modular info:', error)
+      }
     } else {
       // 使用舊的提示詞建構
       const promptContext = {
@@ -160,7 +205,10 @@ export async function POST(req: NextRequest) {
     let source: 'ollama' | 'fallback' | 'mock' = 'ollama'
     let generationTime = 0
     
-    try {
+     // 準備記錄分析的模組資訊
+     let contentGenerationEventParams: any = null
+
+     try {
       if (USE_MOCK_DATA) {
         // Use mock data for development
         console.log('[Generate] Using mock data')
@@ -187,6 +235,15 @@ export async function POST(req: NextRequest) {
         generationTime = Date.now() - startTime
         source = 'mock'
 
+        // 記錄分析事件
+        contentGenerationEventParams = {
+          role_module: 'mock_data',
+          perspective_module: 'mock_perspective',
+          format_module: 'simple',
+          depth_module: 'standard',
+          news_count: 0
+        }
+
         console.log(`[Generate] Mock data generated (${generationTime}ms)`)
       } else {
         // Use real Ollama LLM generation
@@ -206,7 +263,16 @@ export async function POST(req: NextRequest) {
         const userMessage = promptData.messages.find((m: any) => m.role === 'user')?.content || ''
         const fullPrompt = `${systemMessage}\n\n${userMessage}`
 
+        // 檢查是否有模組使用資訊
+        const usedModules = promptData._modules || {
+          role: 'unknown',
+          perspective: 'unknown', 
+          format: 'unknown',
+          depth: 'standard'
+        }
+
         console.log('[Generate] Sending request to Ollama...')
+        console.log('[Generate] Used modules:', usedModules)
 
         // Call Ollama API
         const ollamaResponse = await ollamaClient.generate(
@@ -261,6 +327,15 @@ export async function POST(req: NextRequest) {
         generationTime = Date.now() - startTime
         source = 'ollama'
 
+        // 建立分析事件參數
+        contentGenerationEventParams = {
+          role_module: usedModules.role || 'unknown',
+          perspective_module: usedModules.perspective || 'unknown',
+          format_module: usedModules.format || 'unknown',
+          depth_module: usedModules.depth || 'standard',
+          news_count: news.length
+        }
+
         console.log(`[Generate] Ollama generation completed (${generationTime}ms, ${generatedContent.length} items)`)
       }
       
@@ -290,9 +365,32 @@ export async function POST(req: NextRequest) {
       console.log(`[Generate] Using fallback content: ${error instanceof Error ? error.message : String(error)}`)
     }
 
-    // 4. 儲存新內容到快取 + 記算使用者權重
+     // 4. 儲存新內容到快取 + 記算使用者權重
     for (const content of generatedContent) {
       await ContentCache.saveGeneratedContent(uid, [content])
+    }
+    
+    // 5. 記錄內容生成分析事件
+    try {
+      // 如果沒有在生成時設置事件參數（例如fallback情況），設置預設值
+      if (!contentGenerationEventParams) {
+        contentGenerationEventParams = {
+          role_module: source === 'mock' ? 'mock_data' : 'fallback',
+          perspective_module: 'basic',
+          format_module: 'simple', 
+          depth_module: 'standard',
+          news_count: news.length
+        }
+      }
+      
+      // 記錄內容生成事件（非阻塞）
+      trackContentGenerated(contentGenerationEventParams).catch((error) => {
+        console.warn('[Analytics] Failed to record content generation:', error)
+      })
+      
+      console.log('[Analytics] Content generation event logged:', contentGenerationEventParams)
+    } catch (analyticsError) {
+      console.warn('[Analytics] Failed to prepare content generation event:', analyticsError)
     }
     
     // 遞增 rate limit 計數

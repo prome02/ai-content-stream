@@ -47,6 +47,7 @@ export interface ContentItem {
   content: string
   hashtags: string[]
   topics: string[]
+  keywords?: string[]         // 可點擊的關鍵字列表
   generatedAt: Date | string   // API 回傳可能是字串
   style: ContentStyleType
   likes: number
@@ -58,6 +59,12 @@ export interface ContentItem {
     source?: string          // 'ollama' | 'cache' | 'fallback' | 'mock'
     cached?: boolean
   }
+}
+
+export interface KeywordClickEvent {
+  contentId: string
+  keyword: string
+  timestamp: Date
 }
 
 export interface UserData {

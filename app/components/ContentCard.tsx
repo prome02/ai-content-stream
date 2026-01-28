@@ -5,7 +5,7 @@ import { Heart, ThumbsDown, Clock, Repeat, MoreHorizontal, MessageSquare, Share2
 import { useInteractionTracking } from '@/app/hooks/useInteractionTracking'
 import AbTestingManager from '@/lib/ab-testing'
 
-import type { ContentItem } from '@/types'
+import type { ContentItem, KeywordClickEvent } from '@/types'
 
 interface ContentCardProps {
   content: ContentItem
@@ -21,9 +21,12 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
   const [localDislikes, setLocalDislikes] = useState(content.dislikes)
   const [showDetails, setShowDetails] = useState(false)
   const [currentScore, setCurrentScore] = useState(content.qualityScore)
+  const [showFeedback, setShowFeedback] = useState(false)
+  const [feedbackText, setFeedbackText] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   
-  // 使用行為追蹤 hook
-  useInteractionTracking(content.id)
+  // 使用行為追蹤 hook - 取得記錄互動的方法
+  const { recordInteraction } = useInteractionTracking(content.id)
 
   // 從 localStorage 讀取使用者的互動狀態
   useEffect(() => {
@@ -203,12 +206,139 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
     }
   }
 
+  const handleKeywordClick = async (keyword: string) => {
+    console.log(`[ContentCard] Keyword clicked: ${keyword}`);
+    
+    // 記錄到 localStorage
+    if (typeof window !== 'undefined') {
+      const keywordClicks = JSON.parse(localStorage.getItem('aipcs_keyword_clicks') || '[]');
+      keywordClicks.push({
+        contentId: content.id,
+        keyword,
+        timestamp: new Date().toISOString()
+      });
+      localStorage.setItem('aipcs_keyword_clicks', JSON.stringify(keywordClicks));
+    }
+    
+    // 使用互動追蹤 hook 記錄事件
+    recordInteraction('keyword_click');
+    
+    // 追蹤事件到自訂 API 用於其他目的（如質量分數更新）
+    try {
+      const response = await fetch('/api/event-track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: currentUserId || 'temp_uid',
+          content_id: content.id,
+          action: 'keyword_click',
+          keyword,
+          timestamp: new Date().toISOString()
+        })
+      });
+      
+      if (response.ok) {
+        console.log('Keyword click tracked');
+      }
+    } catch (error) {
+      console.warn('Keyword tracking failed:', error);
+    }
+  };
+
+  // 意見提交處理
+  const handleFeedbackSubmit = async () => {
+    if (!feedbackText.trim()) return
+
+    setIsSubmitting(true)
+    try {
+      // 記錄到 localStorage
+      if (typeof window !== 'undefined') {
+        const feedbacks = JSON.parse(localStorage.getItem('aipcs_user_feedback') || '[]')
+        feedbacks.push({
+          contentId: content.id,
+          feedbackText: feedbackText.trim(),
+          timestamp: new Date().toISOString()
+        })
+        localStorage.setItem('aipcs_user_feedback', JSON.stringify(feedbacks))
+      }
+
+      // 追蹤事件
+      try {
+        const response = await fetch('/api/event-track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uid: currentUserId || 'temp_uid',
+            content_id: content.id,
+            action: 'feedback',
+            feedback_length: feedbackText.length,
+            timestamp: new Date().toISOString()
+          })
+        })
+        
+        if (response.ok) {
+          console.log('Feedback tracked')
+        }
+      } catch (trackingError) {
+        console.warn('Feedback tracking failed:', trackingError)
+      }
+
+       // 使用互動追蹤 hook 記錄事件
+       recordInteraction('feedback_submit');
+       
+       // 清除狀態
+       setFeedbackText('')
+       setShowFeedback(false)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   // 計算質量分數的顏色
   const getQualityColor = (score: number) => {
     if (score >= 85) return 'text-green-500 bg-green-50'
     if (score >= 70) return 'text-blue-500 bg-blue-50'
     if (score >= 60) return 'text-yellow-500 bg-yellow-50'
     return 'text-gray-500 bg-gray-50'
+  }
+
+  // 關鍵字渲染組件
+  interface ContentRendererProps {
+    content: string
+    onKeywordClick: (keyword: string) => void
+  }
+
+  function ContentRenderer({ content, onKeywordClick }: ContentRendererProps) {
+    // 解析 {{keyword:關鍵字}} 格式
+    const parts = content.split(/(\{\{keyword:[^}]+\}\})/g)
+
+    return (
+      <>
+        {parts.map((part, index) => {
+          const keywordMatch = part.match(/\{\{keyword:([^}]+)\}\}/)
+
+          if (keywordMatch) {
+            const keyword = keywordMatch[1]
+            return (
+              <button
+                key={index}
+                onClick={() => onKeywordClick(keyword)}
+                className="inline-block px-1.5 py-0.5 mx-0.5 text-blue-600
+                         bg-blue-50 rounded hover:bg-blue-100
+                         transition-colors cursor-pointer underline
+                         decoration-dotted underline-offset-2"
+                title={`Click to see more about: ${keyword}`}
+                type="button"
+              >
+                {keyword}
+              </button>
+            )
+          }
+
+          return <span key={index}>{part}</span>
+        })}
+      </>
+    )
   }
 
   return (
@@ -229,7 +359,10 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
       <div className="p-6">
         {/* 內容文字 */}
         <div className="text-gray-800 text-lg leading-relaxed font-medium mb-4">
-          {content.content}
+          <ContentRenderer
+            content={content.content}
+            onKeywordClick={handleKeywordClick}
+          />
         </div>
 
 
@@ -334,14 +467,17 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
             <span className="font-medium">{localDislikes > 0 ? localDislikes : '踩'}</span>
           </button>
 
-          {/* 評論按鈕（未來功能） */}
+          {/* 意見按鈕 */}
           <button
-            className="flex-1 flex items-center justify-center gap-2 py-4 text-gray-600 hover:text-purple-500 hover:bg-purple-50 transition"
-            title="評論功能（開發中）"
-            disabled
+            onClick={() => setShowFeedback(!showFeedback)}
+            className={`flex-1 flex items-center justify-center gap-2 py-4 transition ${
+              showFeedback 
+                ? 'text-purple-500 bg-purple-50' 
+                : 'text-gray-600 hover:text-purple-500 hover:bg-purple-50'
+            }`}
           >
             <MessageSquare className="h-5 w-5" />
-            <span className="font-medium">評論</span>
+            <span className="font-medium">{showFeedback ? '取消' : '意見'}</span>
           </button>
 
           {/* 分享按鈕（未來功能） */}
@@ -355,6 +491,37 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
           </button>
         </div>
       </div>
+
+      {/* 意見輸入區 */}
+      {showFeedback && (
+        <div className="border-t border-gray-200 bg-white">
+          <div className="p-4 bg-gray-50">
+            <textarea
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              placeholder="告訴我們你想看到更多什麼樣的內容..."
+              className="w-full p-3 text-sm border border-gray-300 rounded-lg resize-none 
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              rows={2}
+              maxLength={200}
+            />
+            <div className="flex justify-between items-center mt-3">
+              <span className="text-xs text-gray-400">
+                {feedbackText.length}/200
+              </span>
+              <button
+                onClick={handleFeedbackSubmit}
+                disabled={!feedbackText.trim() || isSubmitting}
+                className="px-4 py-2 text-sm text-white bg-blue-500 
+                           rounded-lg hover:bg-blue-600 disabled:opacity-50 
+                           disabled:cursor-not-allowed transition-colors"
+              >
+                {isSubmitting ? '發送中...' : '發送意見'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* AI 生成標示 */}
       <div className="absolute bottom-2 right-2">

@@ -2,9 +2,10 @@
 // 需要設置 Firebase 配置於 .env.local
 // 參考 .env.local.example 設定
 
-import { initializeApp } from 'firebase/app'
+import { initializeApp, getApps, getApp } from 'firebase/app'
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, connectAuthEmulator } from 'firebase/auth'
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
+import { getAnalytics, isSupported, Analytics } from 'firebase/analytics'
 
 // Firebase 配置 - 從環境變數讀取
 const firebaseConfig = {
@@ -27,17 +28,24 @@ console.log('🔧 Firebase 配置:', {
 })
 
 // 初始化 Firebase
-let app
-let auth: any
-let db: any
-let googleProvider: any
+let app = getApps().length > 0 ? getApp() : undefined
+let auth: any = undefined
+let db: any = undefined
+let googleProvider: any = undefined
+let analytics: Analytics | null = null
 
 try {
   if (typeof window !== 'undefined') {
-    app = initializeApp(firebaseConfig)
-    auth = getAuth(app)
-    db = getFirestore(app)
-    googleProvider = new GoogleAuthProvider()
+    if (!app) {
+      app = initializeApp(firebaseConfig)
+      console.log('[Firebase] App initialized')
+    } else {
+      console.log('[Firebase] App already initialized')
+    }
+    
+    if (!auth) auth = getAuth(app)
+    if (!db) db = getFirestore(app)
+    if (!googleProvider) googleProvider = new GoogleAuthProvider()
     
     // 在開發環境連接 Emulator
     if (USE_EMULATOR) {
@@ -58,6 +66,23 @@ try {
     }
     
     console.log('✅ Firebase 初始化成功')
+    
+    // 初始化 Analytics（僅客戶端）
+    if (typeof window !== 'undefined') {
+      analytics = null
+      try {
+        const supported = await isSupported()
+        if (supported) {
+          analytics = getAnalytics(app)
+          console.log('[Firebase] Analytics initialized')
+        } else {
+          console.log('[Firebase] Analytics not supported in this environment')
+        }
+      } catch (analyticsError) {
+        console.warn('[Firebase] Analytics initialization failed:', analyticsError)
+      }
+    }
+    
   } else {
     console.log('📝 伺服器端渲染，不初始化 Firebase')
     // 建立空的物件以保持介面相容性
@@ -105,4 +130,35 @@ export {
   googleProvider,
   signInWithPopup,
   signOut
+}
+
+/**
+ * 取得 Firebase Analytics 實例（僅客戶端支援）
+ */
+export async function getFirebaseAnalytics(): Promise<Analytics | null> {
+  if (typeof window === 'undefined') {
+    return null  // Server-side, no analytics
+  }
+
+  if (analytics) {
+    return analytics
+  }
+
+  try {
+    const supported = await isSupported()
+    if (supported && app) {
+      analytics = getAnalytics(app)
+      console.log('[Firebase] Analytics initialized')
+      return analytics
+    } else if (!app) {
+      console.log('[Firebase] App not initialized for analytics')
+      return null
+    } else {
+      console.log('[Firebase] Analytics not supported in this environment')
+      return null
+    }
+  } catch (error) {
+    console.error('[Firebase] Failed to get analytics:', error)
+    return null
+  }
 }

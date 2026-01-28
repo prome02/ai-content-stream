@@ -1,6 +1,14 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import {
+  trackContentLike,
+  trackContentDislike,
+  trackContentSkip,
+  trackKeywordClick,
+  trackFeedbackSubmit,
+  trackContentImpression
+} from '@/lib/analytics'
 
 /**
  * 互動追蹤 hook - 追蹤使用者與內容的互動行為
@@ -8,7 +16,7 @@ import { useEffect, useRef } from 'react'
  */
 interface InteractionEvent {
   contentId: string
-  type: 'view' | 'dwell' | 'like' | 'dislike' | 'scroll' | 'exit' | 'skip'
+  type: 'view' | 'dwell' | 'like' | 'dislike' | 'scroll' | 'exit' | 'skip' | 'keyword_click' | 'feedback_submit'
   duration?: number        // 延遲時間 (毫秒)
   scrollDepth?: number     // 滾動深度 (0-1)
   viewPercentage?: number  // 可見區域百分比 (0-1)
@@ -33,7 +41,7 @@ const visibilityMap = new Map<string, ContentVisibility>()
 /**
  * 儲存互動事件到 localStorage
  */
-function saveInteraction(event: InteractionEvent): void {
+async function saveInteraction(event: InteractionEvent): Promise<void> {
   if (typeof window === 'undefined') return
 
   try {
@@ -57,10 +65,56 @@ function saveInteraction(event: InteractionEvent): void {
     // 開發環境記錄
     if (process.env.NODE_ENV === 'development') {
       console.log('📊 互動事件已儲存:', event.contentId, event.type)
-      
-      // 如果是skip事件，特別記錄
-      if (event.type === 'skip') {
-        console.log('   跳過事件：可見超過3秒但無互動')
+    }
+
+    // 記錄到 Firebase Analytics（客戶端時）
+    if (typeof window !== 'undefined') {
+      try {
+        const uid = localStorage.getItem('aipcs_current_user')
+        
+         if (event.type === 'view' || event.type === 'dwell' || event.type === 'scroll') {
+           await trackContentImpression({
+             content_id: event.contentId,
+             topics: [],
+             position: 0
+           })
+           console.log(`[Analytics] ${event.type} tracked for: ${event.contentId}`)
+         } else if (event.type === 'like') {
+           await trackContentLike({
+             content_id: event.contentId,
+             topics: [],
+             style: 'casual'
+           })
+         } else if (event.type === 'dislike') {
+           await trackContentDislike({
+             content_id: event.contentId,
+             topics: [],
+             style: 'casual'
+           })
+         } else if (event.type === 'skip') {
+           await trackContentSkip({
+             content_id: event.contentId,
+             topics: [],
+             style: 'casual',
+             dwell_time: event.duration || 0
+           })
+          } else if (event.type === 'keyword_click') {
+            // 關鍵字點擊事件在 ContentCard.tsx 中直接處理
+            // 這裡只做 console 記錄
+            console.log(`[Analytics] Keyword click for ${event.contentId}`)
+          } else if (event.type === 'feedback_submit') {
+            // 意見提交事件在 ContentCard.tsx 中直接處理
+            console.log(`[Analytics] Feedback submit for ${event.contentId}`)
+          } else if (event.type === 'exit') {
+            // 退出事件，不發送分析，僅記錄
+            console.log(`[Analytics] Exit event for ${event.contentId}`)
+          } else {
+            // 對於其他事件類型
+            console.log(`[Analytics] Other event type: ${event.type}`)
+          }
+      } catch (analyticsError) {
+        console.warn('Analytics recording failed:', analyticsError)
+        // Analytics失敗不影響主要功能
       }
     }
   } catch (error) {
@@ -293,13 +347,15 @@ export function useInteractionTracking(
 
   return {
     // 立即記錄互動事件（供外部調用）
-    recordInteraction: (type: 'like' | 'dislike') => {
-      // 更新跳過追蹤狀態
-      skipTrackingRef.current.hasInteracted = true
+    recordInteraction: (type: 'like' | 'dislike' | 'keyword_click' | 'feedback_submit') => {
+      // 更新跳過追蹤狀態（僅限 like/dislike 被視為互動）
+      if (type === 'like' || type === 'dislike') {
+        skipTrackingRef.current.hasInteracted = true
+      }
       
       saveInteraction({
         contentId,
-        type,
+        type: type as InteractionEvent['type'], // 類型轉換
         timestamp: new Date()
       })
     },
