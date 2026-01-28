@@ -11,6 +11,8 @@ import {
   DepthModuleId
 } from './prompt-modules'
 
+import type { UserBehaviorStats } from './user-data'
+
 export interface UserBehavior {
   avgDwellTime: number      // 平均停留時間（ms）
   recentLikes: number       // 近期按讚數
@@ -73,4 +75,53 @@ export function getDefaultBehavior(): UserBehavior {
     recentSkips: 0,
     hasFeedback: false
   }
+}
+
+/**
+ * 根據完整行為統計選擇深度
+ */
+export function selectDepthFromStats(stats: UserBehaviorStats): DepthModuleId {
+  // 有意見或長停留 + 高按讚率 -> 深度內容
+  if (stats.hasFeedback) {
+    return 'deep'
+  }
+
+  if (stats.avgDwellTime > 30000 && stats.recentLikes > stats.recentSkips) {
+    return 'deep'
+  }
+
+  // 連續無感覺或多不讚 -> 簡短內容
+  if (stats.recentSkips > 5 || stats.recentDislikes > 3) {
+    return 'brief'
+  }
+
+  // 快速瀏覽模式
+  if (stats.avgDwellTime < 5000) {
+    return 'brief'
+  }
+
+  return 'standard'
+}
+
+/**
+ * 組合用戶意見和關鍵字為提示詞脈絡
+ */
+export function buildUserContext(stats: UserBehaviorStats): string {
+  const parts: string[] = []
+
+  if (stats.lastFeedback) {
+    parts.push(`用戶最近表示：「${stats.lastFeedback}」`)
+  }
+
+  if (stats.recentKeywords.length > 0) {
+    parts.push(`用戶對以下主題有興趣：${stats.recentKeywords.join('、')}`)
+  }
+
+  if (stats.recentLikes > stats.recentDislikes * 2) {
+    parts.push('用戶對近期內容反應正面')
+  } else if (stats.recentDislikes > stats.recentLikes) {
+    parts.push('用戶對近期內容反應較負面，請嘗試不同角度')
+  }
+
+  return parts.join('\n')
 }

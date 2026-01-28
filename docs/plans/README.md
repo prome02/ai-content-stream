@@ -8,9 +8,9 @@
 
 | 階段 | 名稱 | 任務數 | 狀態 |
 |------|------|--------|------|
-| Phase 1 | [基礎架構調整](./PHASE-1-FOUNDATION.md) | 5 | [ ] 未開始 |
-| Phase 2 | [新聞整合與提示詞模組化](./PHASE-2-NEWS-AND-MODULES.md) | 7 | [ ] 未開始 |
-| Phase 3 | [互動增強](./PHASE-3-INTERACTION.md) | 6 | [ ] 未開始 |
+| Phase 1 | [基礎架構調整](./PHASE-1-FOUNDATION.md) | 5 | [x] 已完成 |
+| Phase 2 | [新聞整合與提示詞模組化](./PHASE-2-NEWS-AND-MODULES.md) | 7 | [x] 已完成 |
+| Phase 3 | [互動增強](./PHASE-3-INTERACTION.md) | 6 | [x] 已完成 |
 | Phase 4 | [數據記錄與整合驗證](./PHASE-4-ANALYTICS.md) | 6 | [ ] 未開始 |
 
 **總任務數：24 個**
