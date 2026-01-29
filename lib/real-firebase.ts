@@ -1,15 +1,20 @@
 // 真實 Firebase SDK 實作 - 支援 Emulator
-// 需要設置 Firebase 配置於 .env.local
+// 需要设置 Firebase 配置於 .env.local
 // 參考 .env.local.example 設定
+//
+// 注意：即使使用 Emulator，Firebase Analytics/Installations 仍需要格式正確的 API key
+// Firebase SDK 會驗證 API key 格式（必須類似 AIzaSy... 開頭）
+// Emulator 模式下，API key 不需要是真實值，但格式必須正確
 
 import { initializeApp, getApps, getApp } from 'firebase/app'
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, connectAuthEmulator } from 'firebase/auth'
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
 import { getAnalytics, isSupported, Analytics } from 'firebase/analytics'
+import { deleteApp } from 'firebase/app'
 
 // Firebase 配置 - 從環境變數讀取
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'demo-key-for-emulator',
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyDummyApiKeyForEmulatorUseOnly',
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'localhost',
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'demo-project',
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'demo-bucket',
@@ -66,9 +71,9 @@ try {
     }
     
     console.log('✅ Firebase 初始化成功')
-    
-    // 初始化 Analytics（僅客戶端）
-    if (typeof window !== 'undefined') {
+
+    // 初始化 Analytics（僅客戶端，且不使用 Emulator）
+    if (typeof window !== 'undefined' && !USE_EMULATOR) {
       analytics = null
       try {
         const supported = await isSupported()
@@ -81,6 +86,8 @@ try {
       } catch (analyticsError) {
         console.warn('[Firebase] Analytics initialization failed:', analyticsError)
       }
+    } else {
+      console.log('[Firebase] Analytics skipped (using emulator or server-side)')
     }
     
   } else {

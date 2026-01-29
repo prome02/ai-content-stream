@@ -56,12 +56,12 @@ export class OllamaClient {
   constructor(config: OllamaConfig = {}) {
     this.config = {
       baseUrl: config.baseUrl || 'http://localhost:11434',
-      defaultModel: config.defaultModel || 'gemma3:4b',
+      defaultModel: config.defaultModel || 'gemma3:12b-cloud',
       timeout: config.timeout || 30000, // 30秒
       maxRetries: config.maxRetries || 3,
       retryDelay: config.retryDelay || 1000,
     }
-    
+
     this.controller = new AbortController()
   }
 

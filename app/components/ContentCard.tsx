@@ -321,7 +321,7 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
             const keyword = keywordMatch[1]
             return (
               <button
-                key={index}
+                key={`keyword-${index}-${keyword}`}
                 onClick={() => onKeywordClick(keyword)}
                 className="inline-block px-1.5 py-0.5 mx-0.5 text-blue-600
                          bg-blue-50 rounded hover:bg-blue-100
@@ -335,26 +335,17 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
             )
           }
 
-          return <span key={index}>{part}</span>
+          return <span key={`text-${index}`}>{part}</span>
         })}
       </>
     )
   }
 
   return (
-    <div 
+    <div
       id={`content-${content.id}`}
       className="relative bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-xl"
     >
-      {/* 品質評分標籤 */}
-      <div className="absolute top-4 right-4 z-10">
-        <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getQualityColor(content.qualityScore)}`}>
-          <BarChart3 className="h-3 w-3" />
-          <span>{content.qualityScore}</span>
-          <span className="text-xs opacity-75">品質</span>
-        </div>
-      </div>
-
       {/* 主內容區域 */}
       <div className="p-6">
         {/* 內容文字 */}
@@ -378,45 +369,40 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
           ))}
         </div>
 
-        {/* 分類標籤 */}
-        {content.topics.length > 0 && (
-          <div className="mb-6 flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">分類:</span>
-            <div className="flex flex-wrap gap-1">
-              {content.topics.map((topic, index) => (
-                <span 
-                  key={index}
-                  className="inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs"
-                >
-                  {topic}
-                </span>
-              ))}
+        {/* 分類標籤與品質分數 */}
+        <div className="mb-6 flex items-center justify-between">
+          {content.topics.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 font-medium">分類:</span>
+              <div className="flex flex-wrap gap-1">
+                {content.topics.map((topic, index) => (
+                  <span
+                    key={index}
+                    className="inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs"
+                  >
+                    {topic}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* 互動統計 */}
-        <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              <span>{formatTime(content.generatedAt)}</span>
-            </div>
-            
-            <div className="flex items-center gap1">
-              <Repeat className="h-3 w-3" />
-              <span>AI 生成</span>
-            </div>
+          {/* 品質評分標籤 */}
+          <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getQualityColor(content.qualityScore)}`}>
+            <BarChart3 className="h-3 w-3" />
+            <span>{content.qualityScore}</span>
+            <span className="text-xs opacity-75">品質</span>
           </div>
-          
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="text-xs text-gray-400 hover:text-gray-600"
-            title="詳細資訊"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
         </div>
+
+        {/* 展開/收起按鈕 */}
+        <button
+          onClick={() => setShowDetails(!showDetails)}
+          className="text-xs text-gray-400 hover:text-gray-600 mb-4"
+          title="詳細資訊"
+        >
+          <MoreHorizontal className="h-4 w-4 mx-auto" />
+        </button>
       </div>
 
       {/* 詳細資訊（可展開） */}
@@ -500,7 +486,7 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
               value={feedbackText}
               onChange={(e) => setFeedbackText(e.target.value)}
               placeholder="告訴我們你想看到更多什麼樣的內容..."
-              className="w-full p-3 text-sm border border-gray-300 rounded-lg resize-none 
+              className="w-full p-3 text-sm text-gray-700 border border-gray-300 rounded-lg resize-none
                          focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={2}
               maxLength={200}
@@ -512,8 +498,8 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
               <button
                 onClick={handleFeedbackSubmit}
                 disabled={!feedbackText.trim() || isSubmitting}
-                className="px-4 py-2 text-sm text-white bg-blue-500 
-                           rounded-lg hover:bg-blue-600 disabled:opacity-50 
+                className="px-4 py-2 text-sm text-white bg-blue-500
+                           rounded-lg hover:bg-blue-600 disabled:opacity-50
                            disabled:cursor-not-allowed transition-colors"
               >
                 {isSubmitting ? '發送中...' : '發送意見'}
@@ -522,14 +508,6 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
           </div>
         </div>
       )}
-
-      {/* AI 生成標示 */}
-      <div className="absolute bottom-2 right-2">
-        <div className="text-xs text-gray-400 flex items-center gap-1">
-          <div className="h-2 w-S2 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full"></div>
-          <span>AI 生成內容</span>
-        </div>
-      </div>
     </div>
   )
 }

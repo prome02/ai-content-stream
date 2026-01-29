@@ -12,9 +12,12 @@ interface UseInfiniteScrollOptions {
 /**
  * 無限滾動 hook - 偵測特定元素進入視區時觸發載入更多內容
  * 使用單一 IntersectionObserver 機制，避免重複觸發
+ * 
+ * 重要：不再使用固定 timeout 重置 loading 狀態
+ * 而是由 onLoadMore 回調完成後主動呼叫 onLoadComplete 來重置
  */
 export function useInfiniteScroll(
-  onLoadMore: () => void,
+  onLoadMore: () => Promise<void> | void,
   options: UseInfiniteScrollOptions = {}
 ) {
   const {
@@ -29,8 +32,8 @@ export function useInfiniteScroll(
   const isLoadingRef = useRef(false)
   const lastTriggerTimeRef = useRef(0)
 
-  // 重置載入狀態（供外部調用）
-  const resetLoading = useCallback(() => {
+  // 重置載入狀態（供外部在載入完成後呼叫）
+  const onLoadComplete = useCallback(() => {
     isLoadingRef.current = false
   }, [])
 
@@ -43,7 +46,7 @@ export function useInfiniteScroll(
 
     // 創建 IntersectionObserver
     const observer = new IntersectionObserver(
-      (entries) => {
+      async (entries) => {
         const [entry] = entries
         const now = Date.now()
 
@@ -57,15 +60,22 @@ export function useInfiniteScroll(
         ) {
           isLoadingRef.current = true
           lastTriggerTimeRef.current = now
-          console.log('Infinite scroll triggered: loading more content')
+          console.log('[InfiniteScroll] Triggered, calling onLoadMore')
 
-          // 調用載入函數
-          onLoadMoreRef.current()
-
-          // 設定安全的重置時機
-          setTimeout(() => {
+          try {
+            // 等待載入完成（如果返回 Promise）
+            const result = onLoadMoreRef.current()
+            if (result instanceof Promise) {
+              await result
+            }
+          } catch (error) {
+            console.error('[InfiniteScroll] Load error:', error)
+          } finally {
+            // 只有在載入完成後才重置
+            // 不再使用 setTimeout，避免 race condition
             isLoadingRef.current = false
-          }, debounceMs)
+            console.log('[InfiniteScroll] Load complete, reset isLoading')
+          }
         }
       },
       {
@@ -89,7 +99,6 @@ export function useInfiniteScroll(
 
   return {
     sentinelRef,
-    resetLoading,
-    isLoading: isLoadingRef.current
+    onLoadComplete  // 供外部在需要時手動重置（如錯誤處理）
   }
 }

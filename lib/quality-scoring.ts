@@ -1,23 +1,6 @@
-export type InteractionAction = 'like' | 'dislike' | 'view' | 'long_dwell'
+import type { ContentItem } from '@/types'
 
-export interface ContentItem {
-  id: string
-  content: string
-  hashtags: string[]
-  emojis: string[]
-  topics: string[]
-  generatedAt: Date
-  style: 'casual' | 'formal'
-  likes: number
-  dislikes: number
-  qualityScore: number
-  usedBy?: string[]
-  reuseCount?: number
-  metadata?: {
-    source?: string
-    cached?: boolean
-  }
-}
+export type InteractionAction = 'like' | 'dislike' | 'view' | 'long_dwell'
 
 export interface ContentItemForCache extends ContentItem {
   usedBy: string[]
