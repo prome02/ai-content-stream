@@ -1,1 +1,0 @@
-Design a web app for managing rocket launches. Use a technical style.

@@ -274,68 +274,48 @@ ${modeInstruction}
 
   /**
    * 解析 AI 回應
+   * 只支援新格式（物件）：{content, keywords, topics, style}
    */
   parseResponse(aiResponse: string): any[] {
     try {
-      // 嘗試解析 JSON
       const parsed = JSON.parse(aiResponse)
-      
-      // 支援兩種格式：新格式（物件）和舊格式（陣列）
-      if (Array.isArray(parsed)) {
-        // 舊格式（陣列）：[{content, hashtags, emojis, topics, style}]
-        return parsed.map(item => ({
-          content: item.content || '', // 移除字數限制
-          hashtags: Array.isArray(item.hashtags) ? item.hashtags : [],
-          emojis: Array.isArray(item.emojis) ? item.emojis : [],
-          topics: Array.isArray(item.topics) ? item.topics : [],
-          style: item.style || 'casual'
-        }))
-      } else if (parsed && typeof parsed === 'object') {
-        // 新格式（物件）：{content, keywords, topics, style}
+
+      // 只支援新格式（物件）：{content, keywords, topics, style}
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const contentItem = parsed
-        
+
         return [{
           content: contentItem.content || '',
-          hashtags: [], // 新格式沒有 hashtags，使用空陣列相容
-          emojis: [],   // 新格式沒有 emojis，使用空陣列相容
+          hashtags: Array.isArray(contentItem.keywords)
+            ? contentItem.keywords.map((k: string) => k.startsWith('#') ? k : `#${k}`)
+            : [],
           topics: Array.isArray(contentItem.topics) ? contentItem.topics : [],
           style: contentItem.style || 'casual'
         }]
       } else {
-        throw new Error('回應不是有效的 JSON 格式')
+        throw new Error('Response is not a valid object format')
       }
-      
+
     } catch (error) {
-      console.error('解析 AI 回應失敗:', error)
-      
-      // 嘗試從文字中提取 JSON 部分
-      const jsonMatch = aiResponse.match(/\[[\s\S]*\]/) || aiResponse.match(/\{[\s\S]*\}/)
+      console.error('Failed to parse AI response:', error)
+
+      // 只匹配物件格式
+      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         try {
-          // 遞迴呼叫解析提取的 JSON
           return this.parseResponse(jsonMatch[0])
         } catch (e) {
-          console.error('二次解析失敗:', e)
+          console.error('Secondary parse failed:', e)
         }
       }
-      
-      // 緊急備援：生成簡單內容
-      return [
-        {
-          content: '今天也是學習創造美好內容的一天！持續探索，保持好奇。✨',
-          hashtags: ['#學習', '#成長'],
-          emojis: ['✨', '📚'],
-          topics: ['學習'],
-          style: 'casual'
-        },
-        {
-          content: '每一個興趣都是一扇門，開啟它，探索未知的世界。🚪',
-          hashtags: ['#探索', '#興趣'],
-          emojis: ['🚪', '🌍'],
-          topics: ['探索'],
-          style: 'casual'
-        }
-      ]
+
+      // 緊急備援（無 emojis）
+      return [{
+        content: '今天也是學習創造美好內容的一天！持續探索，保持好奇。',
+        hashtags: ['#學習', '#成長'],
+        topics: ['學習'],
+        style: 'casual' as const
+      }]
     }
   }
 
@@ -382,7 +362,7 @@ ${context.userFeedback ? `【用戶意見】
 
     // 保持與現有格式相容
     return JSON.stringify({
-      model: process.env.OLLAMA_MODEL || 'gemma3:12b',
+      model: process.env.OLLAMA_MODEL || 'gemma3:12b-cloud',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }

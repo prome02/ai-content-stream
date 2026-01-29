@@ -80,3 +80,31 @@ docs/TESTING-GUIDE.md
 *.tmp
 *.temp
 *.bak
+
+# AI development tools (personal configuration)
+.claude/
+
+# Logs directory (AI prompt history and JSON logs)
+logs/
+
+# Cache directories
+.cache/
+
+# Windows batch scripts and PowerShell (development/testing)
+*.bat
+*.ps1
+
+# Windows system files
+desktop.ini
+$RECYCLE.BIN/
+
+# ESLint cache
+.eslintcache
+
+# Development/testing files (generated prompt outputs and quick tests)
+README-PROMPT-OUTPUT.md
+quick-test.bat
+simple-test.bat
+test-api.ps1
+test-prompt-output.bat
+test-prompt-output.js

@@ -96,6 +96,12 @@ The `/api/generate` endpoint supports multiple sources:
 - Uses sliding window (timestamp-based, not hour boundary)
 - Falls back to mock content when exceeded
 
+### Content Format
+
+- LLM response format: `{content, keywords, topics, style}`
+- `keywords` are automatically converted to `hashtags` (with `#` prefix)
+- Legacy array format is no longer supported
+
 ## Code Conventions
 
 - Use TypeScript for all new code

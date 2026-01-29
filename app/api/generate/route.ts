@@ -10,6 +10,8 @@ import { fetchNews } from '@/lib/news-fetcher'
 import { getDefaultBehavior } from '@/lib/prompt-selector'
 import { getUserBehaviorStats } from '@/lib/user-data'
 import { trackContentGenerated } from '@/lib/analytics'
+import fs from 'fs'
+import path from 'path'
 import type {
   ContentItem,
   GenerateRequest,
@@ -199,7 +201,70 @@ export async function POST(req: NextRequest) {
       console.log('[Generate] Using legacy prompt')
     }
     
-    console.log('[Generate] Prompt context:', prompt.substring(0, 200) + '...')
+// 輸出完整提示詞到 console 和可選的檔案日誌
+    console.log('=== [Generate] COMPLETE PROMPT START ===')
+    console.log('Timestamp:', new Date().toISOString())
+    console.log('User ID:', uid)
+    console.log('Mode:', hasModularFunction ? 'modular' : 'legacy')
+    
+    try {
+      const promptData = JSON.parse(prompt)
+      console.log('Model:', promptData.model || 'default')
+      console.log('Temperature:', promptData.options?.temperature || 'default')
+      console.log('Top-p:', promptData.options?.top_p || 'default')
+      
+      if (promptData._modules) {
+        console.log('Selected Modules:')
+        console.log('  Role:', promptData._modules.role)
+        console.log('  Perspective:', promptData._modules.perspective)
+        console.log('  Format:', promptData._modules.format)
+        console.log('  Depth:', promptData._modules.depth)
+      }
+      
+      console.log('\n--- SYSTEM PROMPT ---')
+      const systemMessage = promptData.messages?.find((m: any) => m.role === 'system')?.content
+      if (systemMessage) {
+        console.log(systemMessage)
+      }
+      
+      console.log('\n--- USER PROMPT ---')
+      const userMessage = promptData.messages?.find((m: any) => m.role === 'user')?.content
+      if (userMessage) {
+        console.log(userMessage)
+      }
+      
+      console.log('=== [Generate] COMPLETE PROMPT END ===')
+      
+      // 可選：將完整提示詞寫入檔案日誌
+      try {
+        const logsDir = path.join(process.cwd(), 'logs')
+        if (!fs.existsSync(logsDir)) {
+          fs.mkdirSync(logsDir, { recursive: true })
+        }
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+        const logFile = path.join(logsDir, `prompt-${uid}-${timestamp}.json`)
+        
+        const logData = {
+          timestamp: new Date().toISOString(),
+          userId: uid,
+          mode: hasModularFunction ? 'modular' : 'legacy',
+          promptData: promptData,
+          newsCount: news.length,
+          interests: userPreferences?.interests || []
+        }
+        
+        fs.writeFileSync(logFile, JSON.stringify(logData, null, 2), 'utf8')
+        console.log(`[Generate] Prompt logged to file: ${logFile}`)
+        
+      } catch (fileError) {
+        console.warn('[Generate] Failed to write prompt log file:', fileError)
+      }
+      
+    } catch (parseError) {
+      console.log('Raw prompt string:', prompt)
+      console.log('Parse error:', parseError)
+    }
     
     let generatedContent: ContentItem[] = []
     let source: 'ollama' | 'fallback' | 'mock' = 'ollama'
@@ -277,7 +342,7 @@ export async function POST(req: NextRequest) {
         // Call Ollama API
         const ollamaResponse = await ollamaClient.generate(
           fullPrompt,
-          promptData.model || 'gemma3:4b',
+          promptData.model || process.env.OLLAMA_MODEL || 'gemma3:12b-cloud',
           promptData.options || {}
         )
 

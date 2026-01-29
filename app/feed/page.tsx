@@ -90,7 +90,7 @@ function getSourceLabel(source: string): string {
 }
 
 export default function FeedPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
 
   const [feedItems, setFeedItems] = useState<ContentItem[]>([])
@@ -150,6 +150,9 @@ export default function FeedPage() {
   const hasInitializedRef = useRef(false)
 
   useEffect(() => {
+    // 等待 auth 載入完成再決定是否重定向
+    if (authLoading) return
+
     if (!user) {
       // 使用 replace 防止登入頁面保留在歷史堆疊，避免 Feed 畫面閃爍
       router.replace('/')
@@ -171,7 +174,7 @@ export default function FeedPage() {
 
     loadUserPreferences()
     loadFeed(true) // 初始載入
-  }, [user, router, loadFeed])
+  }, [user, authLoading, router, loadFeed])
 
   // 當 refreshCount 或 activeFilter 變化時重新載入 feed（跳過初始值）
   const prevRefreshCountRef = useRef(refreshCount)
@@ -197,9 +200,9 @@ export default function FeedPage() {
 
   // 無限滾動載入更多的回調 - 使用穩定的 ref 避免重複建立
   const loadMoreRef = useRef(() => {})
-  loadMoreRef.current = () => {
+  loadMoreRef.current = async () => {
     if (!loading && !generating && hasMore) {
-      loadFeed(false)
+      await loadFeed(false)
     }
   }
 
@@ -283,6 +286,18 @@ export default function FeedPage() {
       setGenerating(false)
       setLastRefreshTime(new Date())
     }
+  }
+
+  // 等待 auth 載入完成
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-blue-500 mx-auto" />
+          <p className="mt-4 text-gray-600">載入中...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!user) return null

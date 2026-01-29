@@ -17,7 +17,10 @@ cp .env.local.example .env.local
 #### Firebase 設定
 ```env
 # 開發模式（預設使用 Emulator）
-NEXT_PUBLIC_FIREBASE_API_KEY=demo-key-for-emulator
+# 注意：即使使用 Emulator，Firebase Analytics 仍需要格式正確的 API key
+# Firebase SDK 會驗證 API key 格式（必須類似 AIzaSy... 開頭）
+# Emulator 模式下，API key 不需要是真實值，但格式必須正確
+NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyDummyApiKeyForEmulatorUseOnly
 NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=localhost
 NEXT_PUBLIC_FIREBASE_PROJECT_ID=demo-project
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=demo-bucket
