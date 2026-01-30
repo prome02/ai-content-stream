@@ -278,7 +278,19 @@ ${modeInstruction}
    */
   parseResponse(aiResponse: string): any[] {
     try {
-      const parsed = JSON.parse(aiResponse)
+      // 清理 markdown code block 標記
+      let cleanedResponse = aiResponse.trim()
+      if (cleanedResponse.startsWith('```json')) {
+        cleanedResponse = cleanedResponse.slice(7)
+      } else if (cleanedResponse.startsWith('```')) {
+        cleanedResponse = cleanedResponse.slice(3)
+      }
+      if (cleanedResponse.endsWith('```')) {
+        cleanedResponse = cleanedResponse.slice(0, -3)
+      }
+      cleanedResponse = cleanedResponse.trim()
+
+      const parsed = JSON.parse(cleanedResponse)
 
       // 只支援新格式（物件）：{content, keywords, topics, style}
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {

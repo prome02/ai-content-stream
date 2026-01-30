@@ -163,17 +163,25 @@ export default function FeedPage() {
     if (hasInitializedRef.current) return
     hasInitializedRef.current = true
 
-    // 載入使用者偏好
+    // 載入使用者偏好，若無興趣則導向 onboarding
     const loadUserPreferences = async () => {
       if (user) {
         const preferences = await getUserPreferences(user.uid)
         const interests = preferences?.interests || []
+
+        // 若用戶未設定興趣，導向 onboarding
+        if (interests.length === 0) {
+          console.log('[Feed] No interests found, redirecting to onboarding')
+          router.replace('/onboarding/interests')
+          return
+        }
+
         setUserHashtags(getUserHashtags(interests))
+        loadFeed(true) // 有興趣才載入 feed
       }
     }
 
     loadUserPreferences()
-    loadFeed(true) // 初始載入
   }, [user, authLoading, router, loadFeed])
 
   // 當 refreshCount 或 activeFilter 變化時重新載入 feed（跳過初始值）

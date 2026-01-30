@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserAge, getPositiveRate, getRecentLikes } from '@/lib/quality-scoring'
-import AbTestingManager from '@/lib/ab-testing'
-import EventTrackingManager from '@/lib/event-tracking'
+import { calculateQualityScore } from '@/lib/quality-scoring'
+// MVP: COMMENTED OUT - A/B testing disabled
+// import AbTestingManager from '@/lib/ab-testing'
+// import EventTrackingManager from '@/lib/event-tracking'
 import { validateRequest, createErrorResponse } from '@/lib/api-utils'
 import { saveUserFeedback, saveKeywordClick } from '@/lib/user-data'
 
@@ -95,54 +96,24 @@ export async function POST(req: NextRequest) {
     // 2. 獲取當前內容品質分數
     let currentScore = 50
     const contentData = mockContentMap.get(contentId)
-    
+
     if (contentData) {
       currentScore = contentData.qualityScore
     }
 
-    // 3. 取得使用者參數
-    const userData = mockUsers.get(uid) || {
-      createdAt: new Date(),
-      stats: {
-        totalLikes: 0,
-        totalDislikes: 0,
-        totalViews: 0,
-        totalLongDwells: 0
-      }
-    }
-
-    const userAge = getUserAge(userData.createdAt)
-    const positiveRate = getPositiveRate(userData)
-    const recentLikes = getRecentLikes(uid)
-
-    // 4. 使用 AB 測試的品質評分系統
-    const abConfig = AbTestingManager.getUserConfig(uid)
-    const { newScore, reason } = AbTestingManager.calculateQualityScoreWithVariant(
+    // MVP: Simple quality scoring without A/B testing
+    const { newScore, reason } = calculateQualityScore(
       action as 'like' | 'dislike',
       currentScore,
-      userAge,
-      positiveRate,
-      recentLikes,
-      abConfig,
+      0,    // userAge - not used in MVP
+      0.5,  // positiveRate - not used in MVP
+      0,    // recentLikes - not used in MVP
       dwellTime
     )
 
-    console.log(`[Interaction] Quality score calculated (variant ${abConfig.variant}): ${currentScore} -> ${newScore}`, { reason })
-    
-    // 記錄互動到 AB 測試系統
-    AbTestingManager.recordInteraction(uid)
-    
-    // 追蹤互動事件到事件追蹤系統
-    EventTrackingManager.trackContentInteraction(
-      uid,
-      contentId,
-      action as 'like' | 'dislike',
-      newScore,
-      currentScore,
-      abConfig
-    )
+    console.log(`[Interaction] Quality score calculated: ${currentScore} -> ${newScore}`, { reason })
 
-    // 5. 更新內容品質分數（模擬）
+    // 3. 更新內容品質分數（模擬）
     if (contentData) {
       const newContent = {
         ...contentData,
@@ -174,11 +145,16 @@ export async function POST(req: NextRequest) {
     existing.push(newInteraction)
     mockInteractions.set(storageKey, existing)
 
-    // 7. 更新使用者統計（模擬）
+    // 4. 更新使用者統計（模擬）
     if (!mockUsers.has(uid)) {
       mockUsers.set(uid, {
-        ...userData,
-        createdAt: new Date()
+        createdAt: new Date(),
+        stats: {
+          totalLikes: 0,
+          totalDislikes: 0,
+          totalViews: 0,
+          totalLongDwells: 0
+        }
       })
     }
 
@@ -193,8 +169,7 @@ export async function POST(req: NextRequest) {
       user.stats.totalLongDwells++
     }
 
-    // 8. 更新 localStorage 儲存的使用者偏好（透過 mockData）
-    // 這個實際上已經在 other mock data 處理，不需要再重複
+    // MVP: Simplified response without complex metadata
 
     return NextResponse.json({
       success: true,
@@ -210,11 +185,6 @@ export async function POST(req: NextRequest) {
         totalDislikes: user.stats.totalDislikes,
         totalViews: user.stats.totalViews,
         totalLongDwells: user.stats.totalLongDwells
-      },
-      metadata: {
-        userAge: Math.round(userAge),
-        positiveRate: positiveRate,
-        recentLikes: recentLikes
       }
     })
 
