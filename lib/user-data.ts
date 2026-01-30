@@ -244,14 +244,24 @@ export async function getRecentKeywordClicks(uid: string, count: number = 5): Pr
   }
 }
 
-/**
- * 用戶行為統計（用於深度選擇）
- */
+// MVP: COMMENTED OUT - Complex behavior stats
+// /**
+//  * 用戶行為統計（用於深度選擇）
+//  */
+// export interface UserBehaviorStats {
+//   avgDwellTime: number
+//   recentLikes: number
+//   recentDislikes: number
+//   recentSkips: number
+//   hasFeedback: boolean
+//   recentKeywords: string[]
+//   lastFeedback?: string
+// }
+
+// MVP: Simplified interface
 export interface UserBehaviorStats {
-  avgDwellTime: number
   recentLikes: number
   recentDislikes: number
-  recentSkips: number
   hasFeedback: boolean
   recentKeywords: string[]
   lastFeedback?: string
@@ -276,32 +286,40 @@ export async function getUserBehaviorStats(uid: string): Promise<UserBehaviorSta
       }
     }
     
-    // 統計各類型互動
-    let totalDwellTime = 0
-    let dwellTimeCount = 0
+    // MVP: COMMENTED OUT - Complex statistics
+    // // 統計各類型互動
+    // let totalDwellTime = 0
+    // let dwellTimeCount = 0
+    // let likes = 0
+    // let dislikes = 0
+    // let skips = 0
+    //
+    // interactions.forEach(interaction => {
+    //   if (interaction.duration) {
+    //     totalDwellTime += interaction.duration
+    //     dwellTimeCount++
+    //   }
+    //   if (interaction.type === 'like') likes++
+    //   if (interaction.type === 'dislike') dislikes++
+    //   if (interaction.type === 'skip') skips++
+    // })
+
+    // 統計簡單的 like/dislike
     let likes = 0
     let dislikes = 0
-    let skips = 0
-    
+
     interactions.forEach(interaction => {
-      if (interaction.duration) {
-        totalDwellTime += interaction.duration
-        dwellTimeCount++
-      }
       if (interaction.type === 'like') likes++
       if (interaction.type === 'dislike') dislikes++
-      if (interaction.type === 'skip') skips++
     })
-    
+
     // 取得最近的意見和關鍵字
     const recentFeedback = await getRecentFeedback(uid, 1)
     const recentKeywords = await getRecentKeywordClicks(uid, 5)
-    
+
     return {
-      avgDwellTime: dwellTimeCount > 0 ? totalDwellTime / dwellTimeCount : 10000,
       recentLikes: likes,
       recentDislikes: dislikes,
-      recentSkips: skips,
       hasFeedback: recentFeedback.length > 0,
       recentKeywords,
       lastFeedback: recentFeedback[0]?.feedbackText
@@ -310,10 +328,8 @@ export async function getUserBehaviorStats(uid: string): Promise<UserBehaviorSta
   } catch (error) {
     console.error('[UserData] Failed to get behavior stats:', error)
     return {
-      avgDwellTime: 10000,
       recentLikes: 0,
       recentDislikes: 0,
-      recentSkips: 0,
       hasFeedback: false,
       recentKeywords: []
     }

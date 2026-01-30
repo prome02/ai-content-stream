@@ -26,9 +26,9 @@ interface InteractionEvent {
 // localStorage 金鑰
 const INTERACTIONS_STORAGE_KEY = 'aipcs_interaction_logs'
 
-// 無感覺判定參數
-const SKIP_THRESHOLD_MS = 3000  // 可見超過 3 秒
-const SKIP_SCROLL_THRESHOLD = 0.5  // 滾動超過 50%
+// MVP: COMMENTED OUT - Complex tracking
+// const SKIP_THRESHOLD_MS = 3000  // 可見超過 3 秒
+// const SKIP_SCROLL_THRESHOLD = 0.5  // 滾動超過 50%
 
 // 追蹤內容可見狀態
 interface ContentVisibility {
@@ -54,12 +54,11 @@ async function saveInteraction(event: InteractionEvent): Promise<void> {
       ...event,
       timestamp: new Date() // 確保使用當前時間
     })
-    
-    // 只保留最近 1000 個事件避免儲存過多
-    if (events.length > 1000) {
-      events.splice(0, 100)
+    // 只保留最近 100 個事件避免儲存過多
+    if (events.length > 100) {
+      events.splice(0, 20)
     }
-    
+
     localStorage.setItem(INTERACTIONS_STORAGE_KEY, JSON.stringify(events))
     
     // 開發環境記錄
@@ -122,24 +121,25 @@ async function saveInteraction(event: InteractionEvent): Promise<void> {
   }
 }
 
-/**
- * 計算元素可見區域百分比
- */
-function calculateViewPercentage(element: HTMLElement): number {
-  const rect = element.getBoundingClientRect()
-  const windowHeight = window.innerHeight
-  
-  // 計算元素在視窗中的可見部分
-  const visibleTop = Math.max(rect.top, 0)
-  const visibleBottom = Math.min(rect.bottom, windowHeight)
-  
-  if (visibleTop >= visibleBottom) return 0
-  
-  const visibleHeight = visibleBottom - visibleTop
-  const elementHeight = rect.height
-  
-  return Math.min(visibleHeight / elementHeight, 1)
-}
+// MVP: COMMENTED OUT - Complex tracking
+// /**
+//  * 計算元素可見區域百分比
+//  */
+// function calculateViewPercentage(element: HTMLElement): number {
+//   const rect = element.getBoundingClientRect()
+//   const windowHeight = window.innerHeight
+//   
+//   // 計算元素在視窗中的可見部分
+//   const visibleTop = Math.max(rect.top, 0)
+//   const visibleBottom = Math.min(rect.bottom, windowHeight)
+//   
+//   if (visibleTop >= visibleBottom) return 0
+//   
+//   const visibleHeight = visibleBottom - visibleTop
+//   const elementHeight = rect.height
+//   
+//   return Math.min(visibleHeight / elementHeight, 1)
+// }
 
 export function useInteractionTracking(
   contentId: string,
@@ -164,12 +164,13 @@ export function useInteractionTracking(
     hasInteracted: false,
   })
 
-  const checkForSkip = (): boolean => {
-    if (skipTrackingRef.current.hasInteracted) return false
-
-    const visibleDuration = Date.now() - skipTrackingRef.current.visibleSince
-    return visibleDuration >= SKIP_THRESHOLD_MS
-  }
+  // MVP: COMMENTED OUT - Complex tracking
+  // const checkForSkip = (): boolean => {
+  //   if (skipTrackingRef.current.hasInteracted) return false
+  //
+  //   const visibleDuration = Date.now() - skipTrackingRef.current.visibleSince
+  //   return visibleDuration >= SKIP_THRESHOLD_MS
+  // }
 
   useEffect(() => {
     // 查找元素
@@ -202,30 +203,33 @@ export function useInteractionTracking(
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
-            const viewPercentage = calculateViewPercentage(element)
+             // MVP: COMMENTED OUT - Complex tracking
+             // const viewPercentage = calculateViewPercentage(element)
+             const viewPercentage = element.offsetHeight > 0 ? 1 : 0 // Simple check: element visible or not
             
             // 當元素進入視窗時，重置可見時間
             if (entry.isIntersecting) {
               skipTrackingRef.current.visibleSince = Date.now()
             }
             
-            // 當元素離開視窗時，檢查是否需要記錄跳過事件
-            if (!entry.isIntersecting && entry.intersectionRatio === 0 && checkForSkip()) {
-              const visibleDuration = Date.now() - skipTrackingRef.current.visibleSince
-              
-              saveInteraction({
-                contentId,
-                type: 'skip',
-                duration: visibleDuration,
-                scrollDepth: maxScrollRef.current,
-                viewPercentage: viewPercentage,
-                timestamp: new Date()
-              })
-              
-              // 重置追蹤狀態
-              skipTrackingRef.current.hasInteracted = false
-              skipTrackingRef.current.visibleSince = Date.now()
-            }
+            // MVP: COMMENTED OUT - Complex tracking
+            // // 當元素離開視窗時，檢查是否需要記錄跳過事件
+            // if (!entry.isIntersecting && entry.intersectionRatio === 0 && checkForSkip()) {
+            //   const visibleDuration = Date.now() - skipTrackingRef.current.visibleSince
+            //   
+            //   saveInteraction({
+            //     contentId,
+            //     type: 'skip',
+            //     duration: visibleDuration,
+            //     scrollDepth: maxScrollRef.current,
+            //     viewPercentage: viewPercentage,
+            //     timestamp: new Date()
+            //   })
+            //   
+            //   // 重置追蹤狀態
+            //   skipTrackingRef.current.hasInteracted = false
+            //   skipTrackingRef.current.visibleSince = Date.now()
+            // }
             
             // 當元素成為可見時開始追蹤停留時間
             if (entry.isIntersecting && trackDwell && !hasTrackedRef.current.dwell) {
@@ -252,27 +256,33 @@ export function useInteractionTracking(
                 }
               }, threshold)
             }
-            
-            // 追蹤滾動深度
-            if (trackScroll && entry.isIntersecting) {
-              const scrollDepth = 1 - (entry.boundingClientRect.top / window.innerHeight)
-              
-              if (scrollDepth > maxScrollRef.current) {
-                maxScrollRef.current = scrollDepth
-                
-                saveInteraction({
-                  contentId,
-                  type: 'scroll',
-                  scrollDepth,
-                  viewPercentage,
-                  timestamp: new Date()
-                })
-              }
-            }
+             
+            // MVP: COMMENTED OUT - Complex tracking
+            // // 追蹤滾動深度
+            // if (trackScroll && entry.isIntersecting) {
+            //   const scrollDepth = 1 - (entry.boundingClientRect.top / window.innerHeight)
+            //   
+            //   if (scrollDepth > maxScrollRef.current) {
+            //     maxScrollRef.current = scrollDepth
+            //     
+            //     saveInteraction({
+            //       contentId,
+            //       type: 'scroll',
+            //       scrollDepth,
+            //       viewPercentage,
+            //       timestamp: new Date()
+            //     })
+            //   }
+            // }
           })
         },
         {
-          threshold: Array.from({ length: 20 }, (_, i) => i * 0.05), // 0%, 5%, 10%, ... 95%
+          // MVP: COMMENTED OUT - Complex tracking
+          // threshold: Array.from({ length: 20 }, (_, i) => i * 0.05), // 0%, 5%, 10%, ... 95%
+          // root: null,
+          // rootMargin: '0px'
+          // SIMPLE VERSION: Only track when element is 50%+ visible
+          threshold: 0.5,
           root: null,
           rootMargin: '0px'
         }

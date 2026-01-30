@@ -34,77 +34,98 @@ export function calculateQualityScore(
   recentLikes: number,      // 最近 1 小時內點讚次數
   dwellTime?: number
 ): QualityScoreResult {
-  
-  const weight = getUserWeight(userAge, positiveRate, recentLikes)
-  
+
+  // MVP: COMMENTED OUT - Complex user reputation weighting
+  // const weight = getUserWeight(userAge, positiveRate, recentLikes)
+  const weight = 1.0 // Fixed weight for MVP
+
   let delta = 0
-  
+
   switch (action) {
     case 'like':
       delta = 5 * weight
       if (dwellTime && dwellTime > 3000) delta += 8
-      if (recentLikes > 5) delta += 2  // 活躍用戶加分
+      // MVP: COMMENTED OUT - Active user bonus
+      // if (recentLikes > 5) delta += 2  // 活躍用戶加分
       break
-      
+
     case 'dislike':
       delta = -8 * weight
       break
-      
+
     case 'view':
       delta = 1 * weight
       break
-      
+
     case 'long_dwell':
       if (dwellTime && dwellTime > 3000) {
-        // 基礎 8 分 + 額外每秒 0.003 分
-        const extraScore = Math.min(10, (dwellTime - 3000) * 0.003)
-        delta = 8 + extraScore
+        // MVP: COMMENTED OUT - Complex dwell time reward formula
+        // // 基礎 8 分 + 額外每秒 0.003 分
+        // const extraScore = Math.min(10, (dwellTime - 3000) * 0.003)
+        // delta = 8 + extraScore
+        delta = 8 // Simple: just +8 for long dwell
       }
       break
   }
-  
+
   return {
     newScore: Math.max(0, Math.min(100, currentScore + delta)),
     reason: getReason(action, weight, dwellTime)
   }
 }
 
-/**
- * 計算使用者權重
- */
-export function getUserWeight(userAge: number, positiveRate: number, recentLikes: number): number {
-  let weight = 1.0
-  
-  // 新用戶降權 (7 天內權重較低)
-  const ageFactor = Math.min(1, userAge / 7)
-  weight *= ageFactor
-  
-  // 高評比用戶加權 (0.7-1.2)
-  const repFactor = 0.7 + (Math.min(0.5, positiveRate))
-  weight *= repFactor
-  
-  // 超活使用者加分 (最近 1 小時 5 次點讚)
-  if (recentLikes >= 5) {
-    weight *= 1.2
-  }
-  
-  return weight
-}
+// MVP: COMMENTED OUT - Complex user reputation weighting
+// /**
+//  * 計算使用者權重
+//  */
+// export function getUserWeight(userAge: number, positiveRate: number, recentLikes: number): number {
+//   let weight = 1.0
+//
+//   // 新用戶降權 (7 天內權重較低)
+//   const ageFactor = Math.min(1, userAge / 7)
+//   weight *= ageFactor
+//
+//   // 高評比用戶加權 (0.7-1.2)
+//   const repFactor = 0.7 + (Math.min(0.5, positiveRate))
+//   weight *= repFactor
+//
+//   // 超活使用者加分 (最近 1 小時 5 次點讚)
+//   if (recentLikes >= 5) {
+//     weight *= 1.2
+//   }
+//
+//   return weight
+// }
 
-function getReason(action: string, weight: number, dwellTime?: number): string {
+// MVP: COMMENTED OUT - Complex reasoning logic
+// function getReason(action: string, weight: number, dwellTime?: number): string {
+//   if (action === 'like') {
+//     return "點讚: +5 × " + weight.toFixed(2)
+//   }
+//   if (action === 'dislike') {
+//     return `不讚: -8 × ${weight.toFixed(2)}`
+//   }
+//   if (action === 'long_dwell') {
+//     const extra = dwellTime && dwellTime > 3000
+//       ? Math.floor((dwellTime - 3000) / 1000) * 0.003
+//       : 0
+//     return `停留: 8 + ${extra} = ${weight.toFixed(2)}`
+//   }
+//   return "參與: +1 × " + weight.toFixed(2)
+// }
+
+// MVP: Simplified version - parameters kept for compatibility but not used
+function getReason(action: string, _weight: number, _dwellTime?: number): string {
   if (action === 'like') {
-    return "點讚: +5 × " + weight.toFixed(2)
+    return '點讚: +5'
   }
   if (action === 'dislike') {
-    return `不讚: -8 × ${weight.toFixed(2)}`
+    return '不讚: -8'
   }
   if (action === 'long_dwell') {
-    const extra = dwellTime && dwellTime > 3000 
-      ? Math.floor((dwellTime - 3000) / 1000) * 0.003
-      : 0
-    return `停留: 8 + ${extra} = ${weight.toFixed(2)}`
+    return '停留: +8'
   }
-  return "參與: +1 × " + weight.toFixed(2)
+  return '參與: +1'
 }
 
 /**
