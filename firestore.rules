@@ -143,9 +143,45 @@ service cloud.firestore {
     }
 
     // ========================================
-    // 預設規則：拒絕所有其他存取
+    // AI 生成內容 - 使用者資料集合 (aipcs_*)
     // ========================================
 
+    // aipcs_users: 使用者設定與偏好設定
+    match /aipcs_users/{userId} {
+      // 僅允許已驗證的使用者讀取/寫入自己的文件
+      allow read, write: if request.auth != null
+         && request.auth.uid != null
+         && request.auth.uid == userId;
+    }
+
+    // aipcs_cache: 快取資料
+    match /aipcs_cache/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // aipcs_content_cache: 內容快取
+    match /aipcs_content_cache/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // aipcs_interactions: 使用者互動記錄
+    match /aipcs_interactions/{docId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // ========================================
+    // 內容集合：使用者生成的內容
+    // ========================================
+    match /aipcs_content/{docId} {
+      // 允許已驗證的使用者在此集合中讀寫 (開發階段寬鬆授權)
+      allow read, write: if request.auth != null;
+    }
+    
+    // ========================================
+    // 預設規則：拒絕所有其他存取
+    // 注意：此規則必須放在規則文件的最後，否則會優先匹配到其他規則
+    // ========================================
+    
     match /{document=**} {
       allow read, write: if false;
     }

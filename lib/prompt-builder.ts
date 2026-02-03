@@ -275,33 +275,94 @@ ${modeInstruction}
   /**
    * 解析 AI 回應
    * 只支援新格式（物件）：{content, keywords, topics, style}
+   * 增強容錯：處理各種 LLM 輸出格式問題
    */
   parseResponse(aiResponse: string): any[] {
     try {
-      // 清理 markdown code block 標記
       let cleanedResponse = aiResponse.trim()
-      if (cleanedResponse.startsWith('```json')) {
-        cleanedResponse = cleanedResponse.slice(7)
-      } else if (cleanedResponse.startsWith('```')) {
-        cleanedResponse = cleanedResponse.slice(3)
-      }
-      if (cleanedResponse.endsWith('```')) {
-        cleanedResponse = cleanedResponse.slice(0, -3)
-      }
+
+      // 1. 清理 markdown code block 標記（支援多種變體）
+      // 處理 ```json、```JSON、``` json 等格式
+      cleanedResponse = cleanedResponse.replace(/^```\s*json\s*/i, '')
+      cleanedResponse = cleanedResponse.replace(/^```\s*/i, '')
+      cleanedResponse = cleanedResponse.replace(/\s*```\s*$/i, '')
       cleanedResponse = cleanedResponse.trim()
 
-      const parsed = JSON.parse(cleanedResponse)
+      // 2. 移除 BOM 和不可見字元
+      cleanedResponse = cleanedResponse.replace(/^\uFEFF/, '')
+      cleanedResponse = cleanedResponse.replace(/[\x00-\x1F\x7F]/g, (char) => {
+        // 保留換行和 tab
+        if (char === '\n' || char === '\r' || char === '\t') return char
+        return ''
+      })
 
-      // 只支援新格式（物件）：{content, keywords, topics, style}
+      // 3. 嘗試找到 JSON 物件的邊界（處理前後有額外文字的情況）
+      const jsonStartIndex = cleanedResponse.indexOf('{')
+      const jsonEndIndex = cleanedResponse.lastIndexOf('}')
+
+      if (jsonStartIndex !== -1 && jsonEndIndex !== -1 && jsonEndIndex > jsonStartIndex) {
+        cleanedResponse = cleanedResponse.substring(jsonStartIndex, jsonEndIndex + 1)
+      }
+
+      // 4. 修復常見的 JSON 格式問題
+      // 修復尾隨逗號 (trailing comma)
+      cleanedResponse = cleanedResponse.replace(/,\s*([\]}])/g, '$1')
+      // 修復單引號（某些 LLM 會用單引號）
+      // 注意：只在 key 和簡單 value 中替換，避免破壞內容中的單引號
+      cleanedResponse = cleanedResponse.replace(/'([^']+)':/g, '"$1":')
+
+      // 5. 嘗試解析 JSON
+      let parsed: any
+      try {
+        parsed = JSON.parse(cleanedResponse)
+      } catch (parseError) {
+        // 6. 如果解析失敗，嘗試更積極的修復
+        console.warn('[parseResponse] Initial JSON parse failed, attempting recovery...')
+
+        // 嘗試用正則提取各欄位
+        const contentMatch = cleanedResponse.match(/"content"\s*:\s*"([\s\S]*?)(?:"|",\s*"(?:keywords|topics|style))/i)
+        const keywordsMatch = cleanedResponse.match(/"keywords"\s*:\s*\[([\s\S]*?)\]/i)
+        const topicsMatch = cleanedResponse.match(/"topics"\s*:\s*\[([\s\S]*?)\]/i)
+        const styleMatch = cleanedResponse.match(/"style"\s*:\s*"([^"]+)"/i)
+
+        if (contentMatch) {
+          // 手動建構物件
+          parsed = {
+            content: contentMatch[1] || '',
+            keywords: keywordsMatch ? this.parseArrayString(keywordsMatch[1]) : [],
+            topics: topicsMatch ? this.parseArrayString(topicsMatch[1]) : [],
+            style: styleMatch ? styleMatch[1] : 'casual'
+          }
+          console.log('[parseResponse] Recovered JSON via regex extraction')
+        } else {
+          throw parseError
+        }
+      }
+
+      // 7. 驗證並轉換格式
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const contentItem = parsed
 
+        // 確保 content 存在且有意義
+        const content = typeof contentItem.content === 'string'
+          ? contentItem.content.trim()
+          : ''
+
+        if (content.length < 10) {
+          console.warn('[parseResponse] Content too short, may be invalid:', content)
+        }
+
         return [{
-          content: contentItem.content || '',
+          content: content,
           hashtags: Array.isArray(contentItem.keywords)
-            ? contentItem.keywords.map((k: string) => k.startsWith('#') ? k : `#${k}`)
+            ? contentItem.keywords.map((k: string) => {
+                const keyword = String(k).trim()
+                return keyword.startsWith('#') ? keyword : `#${keyword}`
+              })
             : [],
-          topics: Array.isArray(contentItem.topics) ? contentItem.topics : [],
+          topics: Array.isArray(contentItem.topics)
+            ? contentItem.topics.map((t: string) => String(t).trim())
+            : [],
           style: contentItem.style || 'casual'
         }]
       } else {
@@ -309,19 +370,22 @@ ${modeInstruction}
       }
 
     } catch (error) {
-      console.error('Failed to parse AI response:', error)
+      console.error('[parseResponse] Failed to parse AI response:', error)
+      console.error('[parseResponse] Raw response (first 500 chars):', aiResponse.substring(0, 500))
 
-      // 只匹配物件格式
-      const jsonMatch = aiResponse.match(/\{[\s\S]*\}/)
+      // 最後嘗試：用正則匹配任何 JSON 物件
+      const jsonMatch = aiResponse.match(/\{[\s\S]*?"content"[\s\S]*?\}/i)
       if (jsonMatch) {
         try {
+          console.log('[parseResponse] Attempting secondary parse with regex match...')
           return this.parseResponse(jsonMatch[0])
         } catch (e) {
-          console.error('Secondary parse failed:', e)
+          console.error('[parseResponse] Secondary parse failed:', e)
         }
       }
 
-      // 緊急備援（無 emojis）
+      // 緊急備援：返回預設內容
+      console.warn('[parseResponse] Using fallback content')
       return [{
         content: '今天也是學習創造美好內容的一天！持續探索，保持好奇。',
         hashtags: ['#學習', '#成長'],
@@ -329,6 +393,18 @@ ${modeInstruction}
         style: 'casual' as const
       }]
     }
+  }
+
+  /**
+   * 輔助方法：解析陣列字串
+   * 例如：'"a", "b", "c"' => ['a', 'b', 'c']
+   */
+  private parseArrayString(arrayContent: string): string[] {
+    const matches = arrayContent.match(/"([^"]+)"/g)
+    if (matches) {
+      return matches.map(m => m.replace(/"/g, '').trim()).filter(s => s.length > 0)
+    }
+    return []
   }
 
   // 新增模組化提示詞建構方法到類別中
@@ -345,7 +421,13 @@ ${modules.format.prompt}
 
 ${modules.depth.prompt}
 
-請使用繁體中文撰寫。`
+請使用繁體中文撰寫。
+
+【關鍵輸出規則】
+- 你的回覆必須且只能是一個 JSON 物件
+- 不要在 JSON 前後加任何文字說明
+- 不要使用 markdown code block（不要用 \`\`\`）
+- 確保 JSON 格式正確（正確的引號、逗號）`
 
     const userPrompt = `【用戶興趣】
 ${context.userPreferences.interests.join('、')}
@@ -364,17 +446,17 @@ ${context.userFeedback ? `【用戶意見】
 ` : ''}
 請根據以上素材，撰寫一篇文章。
 
-輸出格式（JSON）：
-{
-  "content": "文章內容，使用 {{keyword:關鍵字}} 標記可點擊的關鍵字",
-  "keywords": ["關鍵字1", "關鍵字2"],
-  "topics": ["主題1", "主題2"],
-  "style": "casual"
-}`
+【輸出要求 - 非常重要】
+1. 只輸出 JSON，不要有任何其他文字、說明或 markdown 標記
+2. 不要使用 \`\`\`json 或 \`\`\` 包裹
+3. JSON 必須是有效格式，注意引號和逗號
+
+輸出格式：
+{"content": "文章內容，使用 {{keyword:關鍵字}} 標記可點擊的關鍵字", "keywords": ["關鍵字1", "關鍵字2"], "topics": ["主題1", "主題2"], "style": "casual"}`
 
     // 保持與現有格式相容
     return JSON.stringify({
-      model: process.env.OLLAMA_MODEL || 'gemma3:12b-cloud',
+      model: (typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_OLLAMA_MODEL : process.env.OLLAMA_MODEL) || 'gemma3:12b-cloud',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }

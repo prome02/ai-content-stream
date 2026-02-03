@@ -87,6 +87,7 @@ export interface GenerateRequest {
   uid: string
   count?: number              // 生成數量 (default: 3, max: 10)
   mode?: 'default' | 'creative' | 'focused'
+  interests?: string[]        // Client 直接傳遞興趣標籤（不再從 server 讀取）
 }
 
 export interface GenerateResponse {

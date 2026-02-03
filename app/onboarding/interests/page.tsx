@@ -28,7 +28,7 @@ export default function InterestsPage() {
         router.push('/')
         return
       }
-      
+
       try {
         const preferences = await getUserPreferences(user.uid)
         // 如果使用者已經有設定興趣偏好（非空陣列），直接跳轉到 feed
@@ -78,8 +78,8 @@ export default function InterestsPage() {
         language: 'zh-TW',
         style: 'casual'
       })
-      
-      router.push('/feed')
+
+      router.push('/feed?autoGenerate=true')
     } catch (error) {
       console.error('儲存興趣失敗:', error)
       alert('儲存興趣失敗，請稍後再試')
@@ -115,8 +115,8 @@ export default function InterestsPage() {
                 className={`
                   flex flex-col items-center justify-center p-4 rounded-xl
                   transition-all duration-200 transform hover:scale-105
-                  ${isSelected 
-                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg' 
+                  ${isSelected
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
                     : 'bg-white text-gray-700 hover:bg-gray-50 shadow'
                   }
                 `}
@@ -139,25 +139,25 @@ export default function InterestsPage() {
         <div className="bg-white rounded-2xl p-6 shadow-lg">
           <div className="mb-6">
             <h3 className="font-medium text-gray-900 mb-2">你選擇的興趣：</h3>
-             {selectedInterests.length > 0 ? (
-               <div className="flex flex-wrap gap-2">
-                 {selectedInterests.map(interestId => {
-                   const interest = INTEREST_OPTIONS.find(i => i.id === interestId)
-                   if (!interest) return null
-                   return (
-                     <div
-                       key={interestId}
-                       className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-700"
-                     >
-                       <span>{interest.icon}</span>
-                       <span>{interest.label}</span>
-                     </div>
-                   )
-                 })}
-               </div>
-             ) : (
-               <p className="text-gray-500 text-sm">尚未選擇興趣</p>
-             )}
+            {selectedInterests.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {selectedInterests.map(interestId => {
+                  const interest = INTEREST_OPTIONS.find(i => i.id === interestId)
+                  if (!interest) return null
+                  return (
+                    <div
+                      key={interestId}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-medium bg-blue-100 text-blue-700"
+                    >
+                      <span>{interest.icon}</span>
+                      <span>{interest.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-sm">尚未選擇興趣</p>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4">

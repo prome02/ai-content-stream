@@ -1,5 +1,6 @@
-import { db } from '@/lib/real-firebase'
-import { collection, doc, getDoc, setDoc, deleteDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore'
+'use client'
+
+import { getFirestoreDb, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp } from '@/lib/real-firebase'
 import type { ContentItem } from '@/types'
 
 export interface CacheEntry {
@@ -18,6 +19,11 @@ export class FirestoreCache {
    */
   async get(userId: string): Promise<ContentItem[] | null> {
     try {
+      const db = getFirestoreDb()
+      if (!db) {
+        console.warn('[FirestoreCache] Firestore not available')
+        return null
+      }
       const cacheRef = doc(db, this.COLLECTION_NAME, userId)
       const cacheDoc = await getDoc(cacheRef)
 
@@ -44,11 +50,17 @@ export class FirestoreCache {
    * 儲存內容到快取
    */
   async set(
-    userId: string, 
-    contents: ContentItem[], 
+    userId: string,
+    contents: ContentItem[],
     ttlSeconds: number = this.DEFAULT_TTL_SECONDS
   ): Promise<void> {
     try {
+      const db = getFirestoreDb()
+      if (!db) {
+        console.warn('[FirestoreCache] Firestore not available')
+        return
+      }
+
       const expiresAt = new Date()
       expiresAt.setSeconds(expiresAt.getSeconds() + ttlSeconds)
 
@@ -78,6 +90,11 @@ export class FirestoreCache {
    */
   async clear(userId: string): Promise<void> {
     try {
+      const db = getFirestoreDb()
+      if (!db) {
+        console.warn('[FirestoreCache] Firestore not available')
+        return
+      }
       const cacheRef = doc(db, this.COLLECTION_NAME, userId)
       await deleteDoc(cacheRef)
       console.log('[FirestoreCache] 清理快取:', userId)
@@ -91,6 +108,12 @@ export class FirestoreCache {
    */
   async clearExpired(): Promise<number> {
     try {
+      const db = getFirestoreDb()
+      if (!db) {
+        console.warn('[FirestoreCache] Firestore not available')
+        return 0
+      }
+
       const now = new Date()
       const q = query(
         collection(db, this.COLLECTION_NAME),
@@ -118,6 +141,10 @@ export class FirestoreCache {
    */
   async hasValidCache(userId: string): Promise<boolean> {
     try {
+      const db = getFirestoreDb()
+      if (!db) {
+        return false
+      }
       const cacheRef = doc(db, this.COLLECTION_NAME, userId)
       const cacheDoc = await getDoc(cacheRef)
 
@@ -142,8 +169,13 @@ export class FirestoreCache {
     activeEntries: number
   }> {
     try {
+      const db = getFirestoreDb()
+      if (!db) {
+        return { totalEntries: 0, expiredEntries: 0, activeEntries: 0 }
+      }
+
       const now = new Date()
-      
+
       // 總快取數量
       const allSnapshot = await getDocs(collection(db, this.COLLECTION_NAME))
       const totalEntries = allSnapshot.size
