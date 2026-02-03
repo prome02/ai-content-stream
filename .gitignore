@@ -83,6 +83,11 @@ docs/TESTING-GUIDE.md
 
 # AI development tools (personal configuration)
 .claude/
+.agent/
+.gemini/
+.opencode/
+.roo/
+openspec/
 
 # Logs directory (AI prompt history and JSON logs)
 logs/
@@ -97,6 +102,11 @@ logs/
 # Windows system files
 desktop.ini
 $RECYCLE.BIN/
+nul
+
+# Agent development directories and files (transient state)
+.sisyphus/notepads/
+.sisyphus/*.txt
 
 # ESLint cache
 .eslintcache

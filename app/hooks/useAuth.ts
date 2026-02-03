@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { auth, googleProvider, signInWithPopup, signOut } from '@/lib/real-firebase'
+import { getFirebaseAuth, getGoogleProvider, signInWithPopup, signOut } from '@/lib/real-firebase'
 
 interface User {
   uid: string
@@ -48,6 +48,13 @@ export function useAuth() {
      }
     
     try {
+       const auth = getFirebaseAuth()
+       if (!auth) {
+         console.warn('[Auth] Firebase Auth not available')
+         setAuthState({ user: null, loading: false, error: null })
+         return
+       }
+
        const unsubscribe = auth.onAuthStateChanged(
          (firebaseUser: any) => {
            if (shouldLog()) {
@@ -108,22 +115,29 @@ export function useAuth() {
   const signInWithGoogle = async () => {
     try {
       setAuthState(prev => ({ ...prev, loading: true, error: null }))
-       console.log('開始 Firebase Google 登入')
-      
-      const result = await signInWithPopup(auth, googleProvider)
-       console.log('Firebase Google 登入成功')
-      
-      // auth.onAuthStateChanged 會自動更新狀態
-    } catch (error: any) {
-       console.error('[Auth] Firebase Google 登入失敗:', error)
-      
-      // 如果 Firebase 配置有問題，提供明確的錯誤訊息
-      let errorMessage = error.message || 'Google 登入失敗'
-      
-      if (errorMessage.includes('配置不完整') || errorMessage.includes('初始化失敗')) {
-        errorMessage = `Firebase 配置錯誤: ${errorMessage}\n請檢查 .env.local 設定檔`
+      console.log('[Auth] Starting Firebase Google login')
+
+      const auth = getFirebaseAuth()
+      const googleProvider = getGoogleProvider()
+
+      if (!auth || !googleProvider) {
+        throw new Error('Firebase Auth not initialized')
       }
-      
+
+      await signInWithPopup(auth, googleProvider)
+      console.log('[Auth] Firebase Google login successful')
+
+      // auth.onAuthStateChanged will automatically update state
+    } catch (error: any) {
+      console.error('[Auth] Firebase Google login failed:', error)
+
+      // Provide clear error message for Firebase configuration issues
+      let errorMessage = error.message || 'Google login failed'
+
+      if (errorMessage.includes('not initialized') || errorMessage.includes('initialization failed')) {
+        errorMessage = `Firebase configuration error: ${errorMessage}\nPlease check .env.local settings`
+      }
+
       setAuthState({
         user: null,
         loading: false,
@@ -134,15 +148,19 @@ export function useAuth() {
 
   const logout = async () => {
     try {
-      console.log('開始 Firebase 登出...')
+      console.log('[Auth] Starting Firebase logout...')
+      const auth = getFirebaseAuth()
+      if (!auth) {
+        throw new Error('Firebase Auth not initialized')
+      }
       await signOut(auth)
-      console.log('Firebase 登出成功')
-      // auth.onAuthStateChanged 會自動更新狀態
+      console.log('[Auth] Firebase logout successful')
+      // auth.onAuthStateChanged will automatically update state
     } catch (error: any) {
-      console.error(' Firebase 登出失敗:', error)
-      setAuthState(prev => ({ 
-        ...prev, 
-        error: error.message || '登出失敗' 
+      console.error('[Auth] Firebase logout failed:', error)
+      setAuthState(prev => ({
+        ...prev,
+        error: error.message || 'Logout failed'
       }))
     }
   }

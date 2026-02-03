@@ -79,24 +79,21 @@ export function getDefaultBehavior(): UserBehavior {
 
 /**
  * 根據完整行為統計選擇深度
+ * MVP: Simplified - removed avgDwellTime and recentSkips
  */
 export function selectDepthFromStats(stats: UserBehaviorStats): DepthModuleId {
-  // 有意見或長停留 + 高按讚率 -> 深度內容
+  // 有意見 -> 深度內容
   if (stats.hasFeedback) {
     return 'deep'
   }
 
-  if (stats.avgDwellTime > 30000 && stats.recentLikes > stats.recentSkips) {
+  // 高按讚率 -> 深度內容
+  if (stats.recentLikes > 5) {
     return 'deep'
   }
 
-  // 連續無感覺或多不讚 -> 簡短內容
-  if (stats.recentSkips > 5 || stats.recentDislikes > 3) {
-    return 'brief'
-  }
-
-  // 快速瀏覽模式
-  if (stats.avgDwellTime < 5000) {
+  // 多不讚 -> 簡短內容
+  if (stats.recentDislikes > 3) {
     return 'brief'
   }
 

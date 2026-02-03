@@ -166,8 +166,9 @@ class EventTrackingManager {
    * 取得 A/B 測試統計數據
    */
   getAbTestStats(): Record<string, any> {
-    const variantGroups: Record<QualityScoreVariant, EventData[]> = {
-      'A': [], 'B': [], 'C': [], 'D': []
+    // MVP: Only variant 'A' is active
+    const variantGroups: Record<string, EventData[]> = {
+      'A': []
     }
     
     // 按變體分組事件
