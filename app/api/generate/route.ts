@@ -50,10 +50,10 @@ export async function POST(req: NextRequest) {
     const rateLimitResult = await rateLimiter.check(uid)
     if (!rateLimitResult.allowed) {
       console.log(`[Generate] Rate limit exceeded: ${uid}`)
-      
+
       // 使用降級內容
       const fallbackContent = getFallbackContent(uid, count)
-      
+
       return NextResponse.json(
         {
           success: false,
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
             resetAt: rateLimitResult.resetAt.toISOString()
           }
         },
-        { 
+        {
           status: 429
         }
       )
@@ -83,10 +83,10 @@ export async function POST(req: NextRequest) {
 
     if (cachedContent.length >= count) {
       console.log(`[Generate] Cache hit, returning ${cachedContent.length} items`)
-      
+
       // 遞增 rate limit 計數
       await rateLimiter.increment(uid, '/api/generate')
-      
+
       return NextResponse.json({
         success: true,
         contents: cachedContent.slice(0, count).map(item => ({
@@ -109,11 +109,11 @@ export async function POST(req: NextRequest) {
 
     // 3. Use PromptBuilder to prepare content generation
     console.log(`[Generate] Need to generate ${count - cachedContent.length} new items`)
-    
+
     const promptBuilder = new PromptBuilder()
     const recentInteractionsCount = getRecentLikes(uid, 10)
     const diversityScore = calculateDiversityScore(uid)
-    
+
     // 抓取相關新聞
     const interests = (userPreferences?.interests || []) as InterestCategory[]
     const news = await fetchNews({
@@ -121,20 +121,20 @@ export async function POST(req: NextRequest) {
       maxItems: 5,
       locale: 'zh-TW'
     })
-    
+
     console.log(`[Generate] Fetched ${news.length} news items`)
-    
+
     // 使用舊的或新的提示詞建構
     let prompt = ''
-    
+
     // 檢查是否有模組化提示詞功能
     const hasModularFunction = typeof promptBuilder.buildModularPrompt === 'function'
-    
+
     if (hasModularFunction) {
       // Phase 3: 使用真實用戶行為統計
       let behavior = getDefaultBehavior()
       let userFeedback = undefined
-      
+
       try {
         const behaviorStats = await getUserBehaviorStats(uid)
         console.log('[Generate] User behavior stats:', {
@@ -144,20 +144,20 @@ export async function POST(req: NextRequest) {
           recentSkips: behaviorStats.recentSkips,
           recentKeywords: behaviorStats.recentKeywords.slice(0, 3)
         })
-        
+
         behavior = {
-          avgDwellTime: behaviorStats.avgDwellTime,
+          avgDwellTime: 0, // UserBehaviorStats doesn't have this field, using default
           recentLikes: behaviorStats.recentLikes,
           recentSkips: behaviorStats.recentSkips,
           hasFeedback: behaviorStats.hasFeedback,
           lastKeywordClick: behaviorStats.recentKeywords[0]
         }
-        
+
         userFeedback = behaviorStats.lastFeedback
       } catch (error) {
         console.warn('[Generate] Failed to get user behavior stats, using default:', error)
       }
-      
+
       // 使用模組化提示詞建構
       const modularPromptContext = {
         userPreferences: {
@@ -168,10 +168,10 @@ export async function POST(req: NextRequest) {
         behavior,  // 使用真實行為或預設
         userFeedback
       }
-      
+
       prompt = (promptBuilder as any).buildModularPrompt(modularPromptContext)
       console.log('[Generate] Using modular prompt')
-      
+
       // 記錄模組使用資訊（如果可用）
       try {
         const modularInfo = {
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
           interests_count: userPreferences?.interests?.length || 0
         }
         console.log('[Generate] Modular context:', modularInfo)
-        
+
         // 注意：具體模組選擇在 prompt-builder 內部處理，這裡只記錄元數據
         // 真正的模組記錄將在生成完成後通過 analytics 處理
       } catch (error) {
@@ -196,23 +196,23 @@ export async function POST(req: NextRequest) {
         mode,
         diversityScore
       }
-      
+
       prompt = promptBuilder.build(promptContext)
       console.log('[Generate] Using legacy prompt')
     }
-    
-// 輸出完整提示詞到 console 和可選的檔案日誌
+
+    // 輸出完整提示詞到 console 和可選的檔案日誌
     console.log('=== [Generate] COMPLETE PROMPT START ===')
     console.log('Timestamp:', new Date().toISOString())
     console.log('User ID:', uid)
     console.log('Mode:', hasModularFunction ? 'modular' : 'legacy')
-    
+
     try {
       const promptData = JSON.parse(prompt)
       console.log('Model:', promptData.model || 'default')
       console.log('Temperature:', promptData.options?.temperature || 'default')
       console.log('Top-p:', promptData.options?.top_p || 'default')
-      
+
       if (promptData._modules) {
         console.log('Selected Modules:')
         console.log('  Role:', promptData._modules.role)
@@ -220,31 +220,31 @@ export async function POST(req: NextRequest) {
         console.log('  Format:', promptData._modules.format)
         console.log('  Depth:', promptData._modules.depth)
       }
-      
+
       console.log('\n--- SYSTEM PROMPT ---')
       const systemMessage = promptData.messages?.find((m: any) => m.role === 'system')?.content
       if (systemMessage) {
         console.log(systemMessage)
       }
-      
+
       console.log('\n--- USER PROMPT ---')
       const userMessage = promptData.messages?.find((m: any) => m.role === 'user')?.content
       if (userMessage) {
         console.log(userMessage)
       }
-      
+
       console.log('=== [Generate] COMPLETE PROMPT END ===')
-      
+
       // 可選：將完整提示詞寫入檔案日誌
       try {
         const logsDir = path.join(process.cwd(), 'logs')
         if (!fs.existsSync(logsDir)) {
           fs.mkdirSync(logsDir, { recursive: true })
         }
-        
+
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
         const logFile = path.join(logsDir, `prompt-${uid}-${timestamp}.json`)
-        
+
         const logData = {
           timestamp: new Date().toISOString(),
           userId: uid,
@@ -253,27 +253,27 @@ export async function POST(req: NextRequest) {
           newsCount: news.length,
           interests: userPreferences?.interests || []
         }
-        
+
         fs.writeFileSync(logFile, JSON.stringify(logData, null, 2), 'utf8')
         console.log(`[Generate] Prompt logged to file: ${logFile}`)
-        
+
       } catch (fileError) {
         console.warn('[Generate] Failed to write prompt log file:', fileError)
       }
-      
+
     } catch (parseError) {
       console.log('Raw prompt string:', prompt)
       console.log('Parse error:', parseError)
     }
-    
+
     let generatedContent: ContentItem[] = []
     let source: 'ollama' | 'fallback' | 'mock' = 'ollama'
     let generationTime = 0
-    
-     // 準備記錄分析的模組資訊
-     let contentGenerationEventParams: any = null
 
-     try {
+    // 準備記錄分析的模組資訊
+    let contentGenerationEventParams: any = null
+
+    try {
       if (USE_MOCK_DATA) {
         // Use mock data for development
         console.log('[Generate] Using mock data')
@@ -331,7 +331,7 @@ export async function POST(req: NextRequest) {
         // 檢查是否有模組使用資訊
         const usedModules = promptData._modules || {
           role: 'unknown',
-          perspective: 'unknown', 
+          perspective: 'unknown',
           format: 'unknown',
           depth: 'standard'
         }
@@ -403,7 +403,7 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Generate] Ollama generation completed (${generationTime}ms, ${generatedContent.length} items)`)
       }
-      
+
     } catch (error) {
       console.error('[Generate] Ollama generation failed:', error)
 
@@ -430,11 +430,11 @@ export async function POST(req: NextRequest) {
       console.log(`[Generate] Using fallback content: ${error instanceof Error ? error.message : String(error)}`)
     }
 
-     // 4. 儲存新內容到快取 + 記算使用者權重
+    // 4. 儲存新內容到快取 + 記算使用者權重
     for (const content of generatedContent) {
       await ContentCache.saveGeneratedContent(uid, [content])
     }
-    
+
     // 5. 記錄內容生成分析事件
     try {
       // 如果沒有在生成時設置事件參數（例如fallback情況），設置預設值
@@ -442,22 +442,22 @@ export async function POST(req: NextRequest) {
         contentGenerationEventParams = {
           role_module: source === 'mock' ? 'mock_data' : 'fallback',
           perspective_module: 'basic',
-          format_module: 'simple', 
+          format_module: 'simple',
           depth_module: 'standard',
           news_count: news.length
         }
       }
-      
+
       // 記錄內容生成事件（非阻塞）
       trackContentGenerated(contentGenerationEventParams).catch((error) => {
         console.warn('[Analytics] Failed to record content generation:', error)
       })
-      
+
       console.log('[Analytics] Content generation event logged:', contentGenerationEventParams)
     } catch (analyticsError) {
       console.warn('[Analytics] Failed to prepare content generation event:', analyticsError)
     }
-    
+
     // 遞增 rate limit 計數
     await rateLimiter.increment(uid, '/api/generate')
 
@@ -510,7 +510,7 @@ function getTimeOfDay(): 'morning' | 'afternoon' | 'evening' | 'night' {
 
 function getFallbackContent(uid: string, count: number): ContentItem[] {
   console.log(`[Generate] Using fallback content for: ${uid}`)
-  
+
   return MOCK_CONTENT_ITEMS
     .sort(() => Math.random() - 0.5)
     .slice(0, count)
@@ -518,7 +518,7 @@ function getFallbackContent(uid: string, count: number): ContentItem[] {
       id: `fallback_${Date.now()}_${index}`,
       content: item.content,
       hashtags: item.hashtags,
-      
+
       topics: item.topics,
       likes: item.likes,
       dislikes: item.dislikes,
@@ -534,42 +534,42 @@ function calculateDiversityScore(uid: string): number {
   try {
     // 模擬獲取最近的互動主題
     const mockTopics = [
-      'ai', 'tech', 'learning', 'business', 'health', 
+      'ai', 'tech', 'learning', 'business', 'health',
       'travel', 'food', 'music', 'movies', 'anime'
     ]
-    
+
     // 隨機模擬一些互動主題
     const interactions = Array.from({ length: 10 }, () => ({
       topics: [mockTopics[Math.floor(Math.random() * mockTopics.length)]]
     }))
-    
+
     // 計算多樣性
     if (interactions.length === 0) return 0.5
-    
+
     const uniqueTopics = [...new Set(interactions.map(i => i.topics || []).flat())]
     const totalTopics = interactions.length
 
     // 香農熵
     const topicFrequency = new Map<string, number>()
-    
+
     interactions.forEach(i => {
-      ;(i.topics || []).forEach(topic => {
+      ; (i.topics || []).forEach(topic => {
         topicFrequency.set(topic, (topicFrequency.get(topic) || 0) + 1)
       })
     })
-    
+
     let entropy = 0
     topicFrequency.forEach((count, topic) => {
       const prob = count / totalTopics
       if (prob > 0) entropy -= prob * Math.log2(prob)
     })
-    
+
     // 正規化到 0-1
     const maxEntropy = Math.log2(Math.max(uniqueTopics.length, 1))
     const normalizedEntropy = maxEntropy > 0 ? entropy / maxEntropy : 0
-    
+
     return normalizedEntropy
-    
+
   } catch (error) {
     console.error('[Generate] Failed to calculate diversity score:', error)
     return 0.5

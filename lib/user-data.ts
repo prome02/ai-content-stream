@@ -291,6 +291,7 @@ export async function getRecentKeywordClicks(uid: string, count: number = 5): Pr
 export interface UserBehaviorStats {
   recentLikes: number
   recentDislikes: number
+  recentSkips: number
   hasFeedback: boolean
   recentKeywords: string[]
   lastFeedback?: string
@@ -304,6 +305,7 @@ export async function getUserBehaviorStats(uid: string): Promise<UserBehaviorSta
     return {
       recentLikes: 0,
       recentDislikes: 0,
+      recentSkips: 0,
       hasFeedback: false,
       recentKeywords: []
     }
@@ -314,6 +316,7 @@ export async function getUserBehaviorStats(uid: string): Promise<UserBehaviorSta
     return {
       recentLikes: 0,
       recentDislikes: 0,
+      recentSkips: 0,
       hasFeedback: false,
       recentKeywords: []
     }
@@ -332,11 +335,13 @@ export async function getUserBehaviorStats(uid: string): Promise<UserBehaviorSta
 
     let likes = 0
     let dislikes = 0
+    let skips = 0
 
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data()
       if (data.type === 'like') likes++
       if (data.type === 'dislike') dislikes++
+      if (data.type === 'skip') skips++
     })
 
     // Get recent feedback and keywords
@@ -346,6 +351,7 @@ export async function getUserBehaviorStats(uid: string): Promise<UserBehaviorSta
     return {
       recentLikes: likes,
       recentDislikes: dislikes,
+      recentSkips: skips,
       hasFeedback: recentFeedback.length > 0,
       recentKeywords,
       lastFeedback: recentFeedback[0]?.feedbackText
@@ -356,6 +362,7 @@ export async function getUserBehaviorStats(uid: string): Promise<UserBehaviorSta
     return {
       recentLikes: 0,
       recentDislikes: 0,
+      recentSkips: 0,
       hasFeedback: false,
       recentKeywords: []
     }
