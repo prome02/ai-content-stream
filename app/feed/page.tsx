@@ -9,8 +9,10 @@ import { useContentGeneration } from '@/app/hooks/useContentGeneration'
 import { getUserPreferences } from '@/lib/user-data'
 import { updateContentInteraction } from '@/lib/content-service'
 import { Home, User, RefreshCw, Filter, Loader2, Sparkles, Zap, BarChart3, Database } from 'lucide-react'
-import { useSearchParams } from 'next/navigation'
 import type { ContentItem } from '@/types'
+
+// 用於取得 URL 參數的 client-side 方法
+// 取代 useSearchParams 以避免 Suspense 錯誤
 
 // Helper: Convert interests to hashtags
 function getUserHashtags(interests: string[]): string[] {
@@ -63,8 +65,13 @@ function getSourceLabel(source: string): string {
 export default function FeedPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const shouldAutoGenerate = searchParams.get('autoGenerate') === 'true'
+  const [shouldAutoGenerate, setShouldAutoGenerate] = useState(false)
+
+  // 在客戶端取得 URL 參數（避免 useSearchParams 的 Suspense 要求）
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setShouldAutoGenerate(params.get('autoGenerate') === 'true')
+  }, [])
 
   // Local state
   const [userHashtags, setUserHashtags] = useState<string[]>([])
