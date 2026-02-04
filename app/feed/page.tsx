@@ -319,14 +319,14 @@ export default function FeedPage() {
               <div className="mx-auto w-24 h-24 mb-4 flex items-center justify-center rounded-full bg-gray-100">
                 <Sparkles className="h-12 w-12 text-gray-400" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">開始生成內容</h3>
-              <p className="text-gray-600 mb-6">點擊下方按鈕，AI 將為你生成個人化內容</p>
+              <h3 className="text-xl font-semibold text-gray-800 mb-2">Start generating content</h3>
+              <p className="text-gray-600 mb-6">Click the button below, AI will generate personalized content for you</p>
               <button
                 onClick={handleRefresh}
                 disabled={isGenerating}
                 className="px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition disabled:opacity-50"
               >
-                生成內容
+                Generate Content
               </button>
             </div>
           ) : feedItems.length === 0 && shouldAutoGenerate ? (
