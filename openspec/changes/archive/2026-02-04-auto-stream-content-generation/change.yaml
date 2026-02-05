@@ -1,0 +1,9 @@
+name: auto-stream-content-generation
+description: Refactor content generation to auto-start and stream articles one by one
+schema: spec-driven
+status: ready-for-implementation
+created: 2026-02-02
+artifacts:
+  - proposal.md
+  - delta-spec.md
+  - tasks.md
