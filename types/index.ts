@@ -111,3 +111,75 @@ export interface InteractionData {
   scrollDepth?: number
   timestamp: Date
 }
+
+// Content generation settings types
+export type ToneType = 'casual' | 'professional' | 'friendly' | 'academic'
+export type StyleType = 'narrative' | 'analytical' | 'conversational' | 'technical'
+export type DepthType = 'brief' | 'moderate' | 'deep' | 'comprehensive'
+export type LengthType = 'short' | 'medium' | 'long' | 'detailed'
+export type TopicType = 'trending' | 'educational' | 'news' | 'opinion' | 'tutorial'
+export type FreshnessType = 'latest' | 'recent' | 'timeless' | 'classic'
+
+export interface ContentSettings {
+  tone: ToneType
+  style: StyleType
+  depth: DepthType
+  length: LengthType
+  topic: TopicType
+  freshness: FreshnessType
+  autoInfiniteScroll: boolean
+}
+
+export const DEFAULT_CONTENT_SETTINGS: ContentSettings = {
+  tone: 'casual',
+  style: 'conversational',
+  depth: 'moderate',
+  length: 'medium',
+  topic: 'trending',
+  freshness: 'recent',
+  autoInfiniteScroll: true,
+}
+
+// Labels for content settings (user-friendly, non-technical)
+export const TONE_OPTIONS: Record<ToneType, { label: string; description: string }> = {
+  casual: { label: '輕鬆聊天', description: '像朋友之間的對話' },
+  professional: { label: '正式專業', description: '嚴謹的專業語氣' },
+  friendly: { label: '親切溫暖', description: '有溫度的分享' },
+  academic: { label: '學術研究', description: '引用數據與研究' },
+}
+
+export const STYLE_OPTIONS: Record<StyleType, { label: string; description: string }> = {
+  narrative: { label: '說故事的方式', description: '用故事帶你認識主題' },
+  analytical: { label: '分析討論', description: '深入剖析事件與觀點' },
+  conversational: { label: '輕鬆對話', description: '像在聊天一樣自然' },
+  technical: { label: '技術詳解', description: '聚焦技術細節與操作' },
+}
+
+export const DEPTH_OPTIONS: Record<DepthType, { label: string; description: string }> = {
+  brief: { label: '快速瀏覽', description: '重點摘要，一目了然' },
+  moderate: { label: '適中深度', description: '兼顧速度與深度' },
+  deep: { label: '深入探討', description: '詳細分析，全面了解' },
+  comprehensive: { label: '完整研究', description: '最深入的內容' },
+}
+
+export const LENGTH_OPTIONS: Record<LengthType, { label: string; description: string }> = {
+  short: { label: '短篇', description: '2-3 分鐘閱讀' },
+  medium: { label: '中篇', description: '5 分鐘閱讀' },
+  long: { label: '長篇', description: '8 分鐘閱讀' },
+  detailed: { label: '詳盡', description: '10 分鐘以上' },
+}
+
+export const TOPIC_OPTIONS: Record<TopicType, { label: string; description: string }> = {
+  trending: { label: '最新趨勢', description: '當前最熱門的話題' },
+  educational: { label: '學習知識', description: '增長見聞的內容' },
+  news: { label: '新聞時事', description: '即時新聞報導' },
+  opinion: { label: '觀點評論', description: '深度觀點與評論' },
+  tutorial: { label: '教學指南', description: '實用的操作教學' },
+}
+
+export const FRESHNESS_OPTIONS: Record<FreshnessType, { label: string; description: string }> = {
+  latest: { label: '今天的新鮮事', description: '最即時的內容' },
+  recent: { label: '近期熱門', description: '最近幾天的內容' },
+  timeless: { label: '永恆經典', description: '不受時間限制' },
+  classic: { label: '經典回顧', description: '經過時間考驗的好文' },
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Heart, ThumbsDown, Clock, Repeat, MoreHorizontal, MessageSquare, Share2, BarChart3 } from 'lucide-react'
+import { Heart, ThumbsDown, MoreHorizontal, MessageSquare, Share2 } from 'lucide-react'
 import { useInteractionTracking } from '@/app/hooks/useInteractionTracking'
 import AbTestingManager from '@/lib/ab-testing'
 
@@ -11,16 +11,16 @@ interface ContentCardProps {
   content: ContentItem
   onLike: (contentId: string) => void
   onDislike: (contentId: string) => void
+  onKeywordClick?: (keyword: string) => void
   currentUserId?: string
 }
 
-export default function ContentCard({ content, onLike, onDislike, currentUserId }: ContentCardProps) {
+export default function ContentCard({ content, onLike, onDislike, onKeywordClick, currentUserId }: ContentCardProps) {
   const [liked, setLiked] = useState(false)
   const [disliked, setDisliked] = useState(false)
   const [localLikes, setLocalLikes] = useState(content.likes)
   const [localDislikes, setLocalDislikes] = useState(content.dislikes)
   const [showDetails, setShowDetails] = useState(false)
-  const [currentScore, setCurrentScore] = useState(content.qualityScore)
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedbackText, setFeedbackText] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -122,9 +122,6 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
             // 事件追蹤失敗不影響主要功能
           }
           
-          if (data?.data?.newScore !== undefined) {
-            setCurrentScore(data.data.newScore)
-          }
         }
       } catch (error) {
         console.warn('互動 API 錯誤:', error)
@@ -196,9 +193,6 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
             // 事件追蹤失敗不影響主要功能
           }
           
-          if (data?.data?.newScore !== undefined) {
-            setCurrentScore(data.data.newScore)
-          }
         }
       } catch (error) {
         console.warn('互動 API 錯誤:', error)
@@ -243,6 +237,9 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
     } catch (error) {
       console.warn('Keyword tracking failed:', error);
     }
+    
+    // 觸發上層的關鍵字點擊處理器
+    onKeywordClick?.(keyword);
   };
 
   // 意見提交處理
@@ -292,14 +289,6 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  // 計算質量分數的顏色
-  const getQualityColor = (score: number) => {
-    if (score >= 85) return 'text-green-500 bg-green-50'
-    if (score >= 70) return 'text-blue-500 bg-blue-50'
-    if (score >= 60) return 'text-yellow-500 bg-yellow-50'
-    return 'text-gray-500 bg-gray-50'
   }
 
   // 關鍵字渲染組件
@@ -369,31 +358,19 @@ export default function ContentCard({ content, onLike, onDislike, currentUserId 
           ))}
         </div>
 
-        {/* 分類標籤與品質分數 */}
-        <div className="mb-6 flex items-center justify-between">
-          {content.topics.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500 font-medium">分類:</span>
-              <div className="flex flex-wrap gap-1">
-                {content.topics.map((topic, index) => (
-                  <span
-                    key={index}
-                    className="inline-block px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs"
-                  >
-                    {topic}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 品質評分標籤 */}
-          <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${getQualityColor(content.qualityScore)}`}>
-            <BarChart3 className="h-3 w-3" />
-            <span>{content.qualityScore}</span>
-            <span className="text-xs opacity-75">品質</span>
+        {/* 分類標籤 */}
+        {content.topics.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-1">
+            {content.topics.map((topic, index) => (
+              <span
+                key={index}
+                className="inline-block px-2 py-1 bg-gray-100 text-gray-600 rounded-md text-xs"
+              >
+                {topic}
+              </span>
+            ))}
           </div>
-        </div>
+        )}
 
         {/* 展開/收起按鈕 */}
         <button

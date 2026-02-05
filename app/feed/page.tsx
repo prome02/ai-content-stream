@@ -4,15 +4,14 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/hooks/useAuth'
 import ContentCard from '@/app/components/ContentCard'
-import ABTestingStatus from '@/components/ABTestingStatus'
+import SettingsDrawer from '@/app/components/settings/SettingsDrawer'
 import { useContentGeneration } from '@/app/hooks/useContentGeneration'
-import { getUserPreferences } from '@/lib/user-data'
+import { useInfiniteScroll } from '@/app/hooks/useInfiniteScroll'
+import { getUserPreferences, getContentSettings, saveContentSettings, resetContentSettings } from '@/lib/user-data'
 import { updateContentInteraction } from '@/lib/content-service'
-import { Home, User, RefreshCw, Filter, Loader2, Sparkles, Zap, BarChart3, Database } from 'lucide-react'
-import type { ContentItem } from '@/types'
-
-// 用於取得 URL 參數的 client-side 方法
-// 取代 useSearchParams 以避免 Suspense 錯誤
+import { Home, RefreshCw, Loader2, Sparkles, Settings, Zap } from 'lucide-react'
+import type { ContentSettings } from '@/types'
+import { DEFAULT_CONTENT_SETTINGS } from '@/types'
 
 // Helper: Convert interests to hashtags
 function getUserHashtags(interests: string[]): string[] {
@@ -40,34 +39,12 @@ function getUserHashtags(interests: string[]): string[] {
   })
 }
 
-// Helper: Source color
-function getContentSourceColor(source: string): string {
-  const colors: Record<string, string> = {
-    'ollama': 'text-green-500',
-    'firestore': 'text-blue-500',
-    'fallback': 'text-orange-500',
-    'mock': 'text-gray-400'
-  }
-  return colors[source] || 'text-gray-400'
-}
-
-// Helper: Source label
-function getSourceLabel(source: string): string {
-  const labels: Record<string, string> = {
-    'ollama': 'AI 即時生成',
-    'firestore': 'Firestore',
-    'fallback': '降級模式',
-    'mock': '模擬資料'
-  }
-  return labels[source] || '未知來源'
-}
-
 export default function FeedPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [shouldAutoGenerate, setShouldAutoGenerate] = useState(false)
 
-  // 在客戶端取得 URL 參數（避免 useSearchParams 的 Suspense 要求）
+  // Read URL params on client
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     setShouldAutoGenerate(params.get('autoGenerate') === 'true')
@@ -75,11 +52,14 @@ export default function FeedPage() {
 
   // Local state
   const [userHashtags, setUserHashtags] = useState<string[]>([])
-  const [activeFilter, setActiveFilter] = useState<'personalized' | 'trending'>('personalized')
   const [userInterests, setUserInterests] = useState<string[]>([])
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null)
 
-  // Content generation hook (direct Ollama + Firestore)
+  // Settings drawer
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [contentSettings, setContentSettings] = useState<ContentSettings>({ ...DEFAULT_CONTENT_SETTINGS })
+
+  // Content generation hook
   const {
     feedItems,
     isGenerating,
@@ -103,6 +83,19 @@ export default function FeedPage() {
     }
   })
 
+  // Auto infinite scroll
+  const handleAutoLoad = useCallback(async () => {
+    if (!user || isGenerating || !contentSettings.autoInfiniteScroll) return
+    console.log('[Feed] Auto-loading more content via infinite scroll')
+    generate(user.uid, 5, userInterests, contentSettings)
+  }, [user, isGenerating, userInterests, contentSettings, generate])
+
+  const { sentinelRef } = useInfiniteScroll(handleAutoLoad, {
+    enabled: contentSettings.autoInfiniteScroll && feedItems.length > 0 && !isGenerating,
+    rootMargin: '200px',
+    debounceMs: 3000,
+  })
+
   // Track initialization
   const hasInitializedRef = useRef(false)
 
@@ -118,7 +111,8 @@ export default function FeedPage() {
     if (hasInitializedRef.current) return
     hasInitializedRef.current = true
 
-    const loadUserPreferences = async () => {
+    const loadUserData = async () => {
+      // Load interests
       const preferences = await getUserPreferences(user.uid)
       const interests = preferences?.interests || []
 
@@ -131,34 +125,38 @@ export default function FeedPage() {
       setUserInterests(interests)
       setUserHashtags(getUserHashtags(interests))
 
+      // Load content settings
+      const settings = await getContentSettings(user.uid)
+      setContentSettings(settings)
+
       // Subscribe to Firestore feed updates
       subscribeToFeed(user.uid)
     }
 
-    loadUserPreferences()
+    loadUserData()
   }, [user, authLoading, router, subscribeToFeed])
 
-  // Auto‑generate content when coming from onboarding
+  // Auto-generate content when coming from onboarding
   useEffect(() => {
     if (!user || !shouldAutoGenerate || isGenerating || feedItems.length > 0) return
     if (userInterests.length === 0) return
 
-    // Clean URL (remove autoGenerate param)
+    // Clean URL
     const url = new URL(window.location.href)
     url.searchParams.delete('autoGenerate')
     window.history.replaceState({}, '', url.pathname)
 
-    console.log('[Feed] Auto‑generating content for new user')
-    generate(user.uid, 5, userInterests)
-  }, [user, shouldAutoGenerate, isGenerating, feedItems.length, userInterests, generate])
+    console.log('[Feed] Auto-generating content for new user')
+    generate(user.uid, 5, userInterests, contentSettings)
+  }, [user, shouldAutoGenerate, isGenerating, feedItems.length, userInterests, contentSettings, generate])
 
   // Handle like
   const handleLike = async (contentId: string) => {
     console.log('[Feed] Like:', contentId)
     try {
       await updateContentInteraction(contentId, 'like')
-    } catch (error) {
-      console.error('[Feed] Like failed:', error)
+    } catch (err) {
+      console.error('[Feed] Like failed:', err)
     }
   }
 
@@ -167,21 +165,57 @@ export default function FeedPage() {
     console.log('[Feed] Dislike:', contentId)
     try {
       await updateContentInteraction(contentId, 'dislike')
-    } catch (error) {
-      console.error('[Feed] Dislike failed:', error)
+    } catch (err) {
+      console.error('[Feed] Dislike failed:', err)
     }
   }
 
-  // Handle refresh - generate new content
+  // Handle keyword click to generate related content
+  const handleKeywordGenerate = async (keyword: string) => {
+    console.log('[Feed] Keyword generate:', keyword)
+    
+    // Scroll to bottom
+    window.scrollTo({
+      top: document.body.scrollHeight,
+      behavior: 'smooth'
+    })
+    
+    // Generate content with keyword as user feedback
+    if (user) {
+      generate(user.uid, 1, userInterests, contentSettings, keyword)
+    }
+  }
+
+  // Handle refresh
   const handleRefresh = async () => {
     if (!user || isGenerating) return
-
     console.log(`[Feed] Starting generation: ${user.uid}, interests: ${userInterests.join(', ')}`)
-
-    // Generate content (calls Ollama directly, saves to Firestore)
-    // UI updates automatically via onSnapshot
-    generate(user.uid, 5, userInterests)
+    generate(user.uid, 5, userInterests, contentSettings)
   }
+
+  // Handle settings change (auto-save)
+  const handleSettingsChange = useCallback(async (newSettings: ContentSettings) => {
+    setContentSettings(newSettings)
+    if (user) {
+      try {
+        await saveContentSettings(user.uid, newSettings)
+      } catch (err) {
+        console.error('[Feed] Failed to save settings:', err)
+      }
+    }
+  }, [user])
+
+  // Handle settings reset
+  const handleSettingsReset = useCallback(async () => {
+    if (user) {
+      try {
+        const defaults = await resetContentSettings(user.uid)
+        setContentSettings(defaults)
+      } catch (err) {
+        console.error('[Feed] Failed to reset settings:', err)
+      }
+    }
+  }, [user])
 
   // Loading state
   if (authLoading) {
@@ -199,19 +233,26 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-blue-50">
-      {/* Header */}
+      {/* Header - simplified */}
       <header className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-200">
-        <div className="max-w-3xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between mb-3">
+        <div className="max-w-2xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Home className="h-6 w-6 text-blue-500" />
-              <h1 className="text-2xl font-bold text-gray-900">AI 內容流</h1>
-              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                Client-side
-              </span>
+              <h1 className="text-xl font-bold text-gray-900">AI 內容流</h1>
+              {source === 'ollama' && (
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> AI
+                </span>
+              )}
+              {feedItems.length > 0 && !source && (
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <Zap className="h-3 w-3" /> 同步
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <button
                 onClick={handleRefresh}
                 disabled={isGenerating}
@@ -222,236 +263,125 @@ export default function FeedPage() {
               </button>
 
               <button
-                onClick={() => router.push('/onboarding/interests')}
+                onClick={() => setIsSettingsOpen(true)}
                 className="p-2 rounded-full hover:bg-gray-100 transition"
-                title="編輯興趣偏好"
+                title="內容偏好設定"
               >
-                <User className="h-5 w-5 text-gray-600" />
+                <Settings className="h-5 w-5 text-gray-600" />
               </button>
             </div>
           </div>
 
-          {/* Source indicator */}
-          <div className="flex items-center justify-between text-sm mb-3">
-            <div className="flex items-center gap-2">
-              {source === 'ollama' && (
-                <div className="flex items-center gap-1 text-green-600">
-                  <Sparkles className="h-4 w-4" />
-                  <span className="font-medium">AI 即時生成</span>
-                </div>
-              )}
-              {source === 'mock' && (
-                <div className="flex items-center gap-1 text-gray-500">
-                  <Database className="h-4 w-4" />
-                  <span className="font-medium">模擬資料</span>
-                </div>
-              )}
-              {feedItems.length > 0 && !source && (
-                <div className="flex items-center gap-1 text-blue-600">
-                  <Zap className="h-4 w-4" />
-                  <span className="font-medium">Firestore 即時同步</span>
-                </div>
-              )}
-            </div>
-
-            {error && (
-              <div className="text-xs text-red-500">
-                {error}
-              </div>
-            )}
-          </div>
-
           {/* Interest tags */}
           {userHashtags.length > 0 && (
-            <div className="mb-3 flex items-center gap-2 text-sm">
-              <Filter className="h-4 w-4 text-gray-500 shrink-0" />
-              <span className="text-gray-600 font-medium">為你推薦:</span>
-              <div className="flex flex-wrap gap-2">
-                {userHashtags.map((hashtag, index) => (
-                  <span
-                    key={index}
-                    className="inline-block px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium"
-                  >
-                    {hashtag}
-                  </span>
-                ))}
-              </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {userHashtags.map((hashtag, index) => (
+                <span
+                  key={index}
+                  className="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs font-medium"
+                >
+                  {hashtag}
+                </span>
+              ))}
             </div>
           )}
 
-          {/* Filter buttons */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setActiveFilter('personalized')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeFilter === 'personalized'
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              個人化推薦
-            </button>
-            <button
-              onClick={() => setActiveFilter('trending')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${activeFilter === 'trending'
-                ? 'bg-purple-500 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              創意模式
-            </button>
-          </div>
+          {/* Error display */}
+          {error && (
+            <div className="mt-2 text-xs text-red-500">{error}</div>
+          )}
 
-          {/* Last update time */}
           {lastRefreshTime && (
-            <div className="mt-2 text-xs text-gray-400">
+            <div className="mt-1 text-xs text-gray-400">
               {lastRefreshTime.toLocaleTimeString('zh-TW')} 更新
             </div>
           )}
         </div>
       </header>
 
-      {/* Main content */}
-      <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
-        {/* Left: Feed content (2/3) */}
-        <div className="w-2/3">
-          {feedItems.length === 0 && !isGenerating && !shouldAutoGenerate ? (
-            <div className="text-center py-12">
-              <div className="mx-auto w-24 h-24 mb-4 flex items-center justify-center rounded-full bg-gray-100">
-                <Sparkles className="h-12 w-12 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">Start generating content</h3>
-              <p className="text-gray-600 mb-6">Click the button below, AI will generate personalized content for you</p>
-              <button
-                onClick={handleRefresh}
-                disabled={isGenerating}
-                className="px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition disabled:opacity-50"
-              >
-                Generate Content
+      {/* Main content - full width, centered */}
+      <main className="max-w-2xl mx-auto px-4 py-6">
+        {feedItems.length === 0 && !isGenerating && !shouldAutoGenerate ? (
+          <div className="text-center py-16">
+            <div className="mx-auto w-20 h-20 mb-4 flex items-center justify-center rounded-full bg-gray-100">
+              <Sparkles className="h-10 w-10 text-gray-400" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">開始探索個人化內容</h3>
+            <p className="text-gray-500 mb-6">點擊下方按鈕，AI 將為你生成專屬內容</p>
+            <button
+              onClick={handleRefresh}
+              disabled={isGenerating}
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition disabled:opacity-50"
+            >
+              生成內容
+            </button>
+          </div>
+        ) : feedItems.length === 0 && shouldAutoGenerate ? (
+          <div className="text-center py-16">
+            <Loader2 className="h-12 w-12 text-blue-500 animate-spin mx-auto" />
+            <h3 className="text-xl font-semibold text-gray-800 mt-4 mb-2">正在為你生成個人化內容...</h3>
+            <p className="text-gray-500">
+              {currentIndex >= 0 ? `正在建立第 ${currentIndex + 1} / ${totalCount} 篇` : '初始化 AI 中...'}
+            </p>
+            {isGenerating && (
+              <button onClick={stop} className="mt-4 text-sm text-red-500 hover:underline">
+                停止生成
               </button>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Content cards */}
+            <div className="space-y-6">
+              {feedItems.map((item) => (
+                <ContentCard
+                  key={item.id}
+                  content={item}
+                  onLike={() => handleLike(item.id)}
+                  onDislike={() => handleDislike(item.id)}
+                  onKeywordClick={handleKeywordGenerate}
+                  currentUserId={user?.uid}
+                />
+              ))}
             </div>
-          ) : feedItems.length === 0 && shouldAutoGenerate ? (
-            <div className="text-center py-12">
-              <div className="mx-auto w-24 h-24 mb-4 flex items-center justify-center">
-                <Loader2 className="h-12 w-12 text-blue-500 animate-spin" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">Generating your personalized content...</h3>
-              <p className="text-gray-600 mb-6">
-                {currentIndex >= 0 ? `Creating article ${currentIndex + 1} of ${totalCount}` : 'Initializing AI...'}
-              </p>
-              {isGenerating && (
-                <button
-                  onClick={stop}
-                  className="mt-4 text-sm text-red-500 hover:underline"
-                >
-                  Stop generation
+
+            {/* Generation progress */}
+            {isGenerating && (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto" />
+                <p className="mt-2 text-sm text-gray-500">
+                  AI 生成中... ({currentIndex + 1}/{totalCount})
+                </p>
+                <button onClick={stop} className="mt-2 text-xs text-red-500 hover:underline">
+                  停止生成
                 </button>
-              )}
-            </div>
-          ) : (
-            <>
-              {/* Content cards */}
-              <div className="space-y-6">
-                {feedItems.map((item) => (
-                  <ContentCard
-                    key={item.id}
-                    content={item}
-                    onLike={() => handleLike(item.id)}
-                    onDislike={() => handleDislike(item.id)}
-                    currentUserId={user?.uid}
-                  />
-                ))}
               </div>
+            )}
 
-              {/* Generation progress */}
-              {isGenerating && (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto" />
-                  <p className="mt-2 text-sm text-gray-500">
-                    AI 生成中... ({currentIndex + 1}/{totalCount})
-                  </p>
-                  <button
-                    onClick={stop}
-                    className="mt-2 text-xs text-red-500 hover:underline"
-                  >
-                    停止生成
-                  </button>
-                </div>
-              )}
+            {/* Infinite scroll sentinel */}
+            <div ref={sentinelRef} className="h-4" />
 
-              {/* Stats */}
-              <div className="mt-12 pt-6 border-t border-gray-200">
-                <div className="text-sm text-gray-500 text-center">
-                  <p>目前已為你推薦 {feedItems.length} 則個人化內容</p>
-                  <p className="mt-1">
-                    來源: <span className={getContentSourceColor(source || 'firestore')}>{getSourceLabel(source || 'firestore')}</span>
-                    {' '}| Firestore 即時同步
-                  </p>
-                </div>
+            {/* Footer stats - simplified */}
+            {!isGenerating && feedItems.length > 0 && (
+              <div className="mt-8 pt-4 border-t border-gray-200 text-center">
+                <p className="text-sm text-gray-400">
+                  已載入 {feedItems.length} 則內容
+                  {contentSettings.autoInfiniteScroll && ' -- 向下滾動自動載入更多'}
+                </p>
               </div>
-            </>
-          )}
-        </div>
+            )}
+          </>
+        )}
+      </main>
 
-        {/* Right: Sidebar (1/3) */}
-        <div className="w-1/3">
-          {user && (
-            <div className="sticky top-6 space-y-6">
-              {/* A/B Testing Status */}
-              <ABTestingStatus uid={user.uid} />
-
-              {/* Architecture Info */}
-              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <Database className="h-5 w-5 text-green-600" />
-                  <h3 className="font-medium text-gray-900">新架構</h3>
-                </div>
-
-                <div className="space-y-2 text-sm text-gray-600">
-                  <div className="flex items-start gap-2">
-                    <div className="h-2 w-2 bg-green-500 rounded-full mt-1.5 flex-shrink-0"></div>
-                    <span>Browser 直接呼叫 Ollama</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="h-2 w-2 bg-green-500 rounded-full mt-1.5 flex-shrink-0"></div>
-                    <span>生成後存入 Firestore</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="h-2 w-2 bg-green-500 rounded-full mt-1.5 flex-shrink-0"></div>
-                    <span>onSnapshot 即時更新 UI</span>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="h-2 w-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0"></div>
-                    <span>無需 Server-side API</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quality scoring params */}
-              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <BarChart3 className="h-5 w-5 text-gray-600" />
-                  <h3 className="font-medium text-gray-900">品質評分參數</h3>
-                </div>
-
-                <div className="space-y-2 text-sm text-gray-600">
-                  <div className="flex justify-between">
-                    <span>點讚分數:</span>
-                    <span className="font-medium">+5 ~ +6</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>不讚分數:</span>
-                    <span className="font-medium text-red-600">-6 ~ -10</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>停留獎勵:</span>
-                    <span className="font-medium">+6 ~ +15</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Settings Drawer */}
+      <SettingsDrawer
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        settings={contentSettings}
+        onSettingsChange={handleSettingsChange}
+        onReset={handleSettingsReset}
+      />
     </div>
   )
 }
