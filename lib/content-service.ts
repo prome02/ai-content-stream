@@ -117,12 +117,12 @@ export async function getUserFeed(
   }
 
   try {
-    const q = query(
-      collection(db, COLLECTIONS.CONTENT),
-      where('userId', '==', userId),
-      orderBy('createdAt', 'desc'),
-      limit(maxItems)
-    )
+  const q = query(
+    collection(db, COLLECTIONS.CONTENT),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'asc'),
+    limit(maxItems)
+  )
 
     const snapshot = await getDocs(q)
     const contents: ContentItem[] = []
@@ -177,12 +177,12 @@ export function subscribeToUserFeed(
     return () => {}
   }
 
-  const q = query(
-    collection(db, COLLECTIONS.CONTENT),
-    where('userId', '==', userId),
-    orderBy('createdAt', 'desc'),
-    limit(maxItems)
-  )
+    const q = query(
+      collection(db, COLLECTIONS.CONTENT),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'asc'),
+      limit(maxItems)
+    )
 
   console.log(`[ContentService] Subscribing to feed for user: ${userId}`)
 

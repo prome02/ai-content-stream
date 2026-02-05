@@ -16,7 +16,7 @@ import { PromptBuilder, type ModularPromptContext } from '@/lib/prompt-builder'
 import { fetchNews } from '@/lib/news-fetcher'
 import { getDefaultBehavior } from '@/lib/prompt-selector'
 import { MOCK_CONTENT_ITEMS } from '@/lib/mock-data'
-import type { ContentItem, InterestCategory } from '@/types'
+import type { ContentItem, ContentSettings, InterestCategory } from '@/types'
 
 interface GenerationState {
   isGenerating: boolean
@@ -72,7 +72,9 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
   const generate = useCallback(async (
     userId: string,
     count: number = 3,
-    interests: string[] = []
+    interests: string[] = [],
+    contentSettings?: ContentSettings,
+    userFeedback?: string
   ) => {
     abortRef.current = false
 
@@ -124,7 +126,8 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
             userPreferences: { interests, language: 'zh-TW' },
             news,
             behavior: getDefaultBehavior(),
-            userFeedback: undefined
+            userFeedback: userFeedback,
+            contentSettings,
           }
 
           const promptJson = promptBuilder.buildModularPrompt(context)

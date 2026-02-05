@@ -407,11 +407,66 @@ ${modeInstruction}
     return []
   }
 
+  // Build personalization instructions from content settings
+  private buildSettingsInstruction(settings: import('@/types').ContentSettings | undefined): string {
+    if (!settings) return ''
+
+    const toneMap: Record<string, string> = {
+      casual: '輕鬆自然，像朋友聊天',
+      professional: '正式專業，嚴謹有條理',
+      friendly: '親切溫暖，有溫度的語氣',
+      academic: '學術研究風格，引用數據與研究',
+    }
+    const styleMap: Record<string, string> = {
+      narrative: '用說故事的方式呈現',
+      analytical: '分析討論，深入剖析',
+      conversational: '對話式，輕鬆自然',
+      technical: '技術詳解，聚焦細節',
+    }
+    const depthMap: Record<string, string> = {
+      brief: '簡短摘要，快速瀏覽（200-300字）',
+      moderate: '適中深度（400-600字）',
+      deep: '深入探討（800-1200字）',
+      comprehensive: '完整研究，最詳盡的內容（1200字以上）',
+    }
+    const lengthMap: Record<string, string> = {
+      short: '2-3分鐘閱讀的短篇',
+      medium: '5分鐘閱讀的中篇',
+      long: '8分鐘閱讀的長篇',
+      detailed: '10分鐘以上的詳盡內容',
+    }
+    const topicMap: Record<string, string> = {
+      trending: '聚焦最新趨勢與熱門話題',
+      educational: '以學習知識為主',
+      news: '新聞時事報導',
+      opinion: '觀點評論與深度分析',
+      tutorial: '實用教學指南',
+    }
+    const freshnessMap: Record<string, string> = {
+      latest: '今天最新的內容',
+      recent: '近期熱門內容',
+      timeless: '不受時間限制的經典內容',
+      classic: '經過時間考驗的經典好文',
+    }
+
+    return `
+【用戶個人化偏好設定】
+- 語氣：${toneMap[settings.tone] || settings.tone}
+- 寫作風格：${styleMap[settings.style] || settings.style}
+- 內容深度：${depthMap[settings.depth] || settings.depth}
+- 文章長度：${lengthMap[settings.length] || settings.length}
+- 主題方向：${topicMap[settings.topic] || settings.topic}
+- 新鮮度偏好：${freshnessMap[settings.freshness] || settings.freshness}
+
+請嚴格依照以上偏好設定來生成內容。`
+  }
+
   // 新增模組化提示詞建構方法到類別中
   buildModularPrompt(context: ModularPromptContext): string {
     const modules = selectModules(context.behavior)
     const newsMaterial = formatNewsForPrompt(context.news)
     const keywords = extractKeywordsFromNews(context.news)
+    const settingsInstruction = this.buildSettingsInstruction(context.contentSettings)
 
     const systemPrompt = `${modules.role.prompt}
 
@@ -419,7 +474,8 @@ ${modules.perspective.prompt}
 
 ${modules.format.prompt}
 
-${modules.depth.prompt}
+${context.contentSettings ? '' : modules.depth.prompt}
+${settingsInstruction}
 
 請使用繁體中文撰寫。
 
@@ -484,6 +540,7 @@ export interface ModularPromptContext {
   news: NewsItem[]
   behavior: UserBehavior
   userFeedback?: string  // 用戶的文字意見
+  contentSettings?: import('@/types').ContentSettings
 }
 
 export { PromptBuilder, type PromptContext, type InteractionData }

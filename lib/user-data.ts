@@ -16,11 +16,15 @@ import {
   Timestamp
 } from './real-firebase'
 
+import type { ContentSettings } from '@/types'
+import { DEFAULT_CONTENT_SETTINGS } from '@/types'
+
 // Collection names
 const USERS_COLLECTION = 'aipcs_users'
 const FEEDBACK_COLLECTION = 'aipcs_feedback'
 const KEYWORD_CLICKS_COLLECTION = 'aipcs_keyword_clicks'
 const INTERACTIONS_COLLECTION = 'aipcs_interactions'
+const SETTINGS_COLLECTION = 'aipcs_user_settings'
 
 export interface UserPreferences {
   interests: string[]
@@ -367,4 +371,98 @@ export async function getUserBehaviorStats(uid: string): Promise<UserBehaviorSta
       recentKeywords: []
     }
   }
+}
+
+// ============================================================
+// Content Settings Management
+// ============================================================
+
+/**
+ * Save user content settings to Firestore
+ */
+export async function saveContentSettings(
+  userId: string,
+  settings: ContentSettings
+): Promise<void> {
+  if (!isBrowser()) {
+    console.log('[UserData] Skipping save on server-side')
+    return
+  }
+
+  const db = getFirestoreDb()
+  if (!db) {
+    console.error('[UserData] Firestore not available')
+    throw new Error('Firestore not initialized')
+  }
+
+  try {
+    console.log('[UserData] Saving content settings for user:', userId)
+
+    const settingsDocRef = doc(db, SETTINGS_COLLECTION, userId)
+    await setDoc(settingsDocRef, {
+      ...settings,
+      updatedAt: serverTimestamp(),
+    }, { merge: true })
+
+    console.log('[UserData] Content settings saved successfully')
+  } catch (error) {
+    console.error('[UserData] Failed to save content settings:', error)
+    throw error
+  }
+}
+
+/**
+ * Get user content settings from Firestore
+ */
+export async function getContentSettings(
+  userId: string
+): Promise<ContentSettings> {
+  if (!isBrowser()) {
+    console.log('[UserData] Skipping get on server-side')
+    return { ...DEFAULT_CONTENT_SETTINGS }
+  }
+
+  const db = getFirestoreDb()
+  if (!db) {
+    console.error('[UserData] Firestore not available')
+    return { ...DEFAULT_CONTENT_SETTINGS }
+  }
+
+  try {
+    console.log('[UserData] Getting content settings for user:', userId)
+
+    const settingsDocRef = doc(db, SETTINGS_COLLECTION, userId)
+    const docSnap = await getDoc(settingsDocRef)
+
+    if (docSnap.exists()) {
+      const data = docSnap.data()
+      console.log('[UserData] Found content settings')
+      return {
+        tone: data.tone || DEFAULT_CONTENT_SETTINGS.tone,
+        style: data.style || DEFAULT_CONTENT_SETTINGS.style,
+        depth: data.depth || DEFAULT_CONTENT_SETTINGS.depth,
+        length: data.length || DEFAULT_CONTENT_SETTINGS.length,
+        topic: data.topic || DEFAULT_CONTENT_SETTINGS.topic,
+        freshness: data.freshness || DEFAULT_CONTENT_SETTINGS.freshness,
+        autoInfiniteScroll: data.autoInfiniteScroll ?? DEFAULT_CONTENT_SETTINGS.autoInfiniteScroll,
+      }
+    }
+
+    console.log('[UserData] No content settings found, using defaults')
+    return { ...DEFAULT_CONTENT_SETTINGS }
+  } catch (error) {
+    console.error('[UserData] Failed to get content settings:', error)
+    return { ...DEFAULT_CONTENT_SETTINGS }
+  }
+}
+
+/**
+ * Reset user content settings to defaults
+ */
+export async function resetContentSettings(
+  userId: string
+): Promise<ContentSettings> {
+  const defaults = { ...DEFAULT_CONTENT_SETTINGS }
+  await saveContentSettings(userId, defaults)
+  return defaults
 }

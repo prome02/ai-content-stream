@@ -7,7 +7,13 @@
       "Bash(claude mcp:*)",
       "Bash(node -e:*)",
       "Bash(\"C:\\\\Users\\\\prome\\\\.vscode\\\\extensions\\\\highagency.pencildev-0.6.11\\\\out\\\\mcp-server-windows-x64.exe\" --help)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(openspec new:*)",
+      "Bash(openspec status:*)",
+      "Bash(openspec instructions proposal:*)",
+      "Bash(openspec instructions design:*)",
+      "Bash(openspec instructions specs:*)",
+      "Bash(openspec instructions tasks:*)"
     ]
   }
 }
