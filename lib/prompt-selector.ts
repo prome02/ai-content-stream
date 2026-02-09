@@ -5,10 +5,11 @@ import {
   PERSPECTIVE_MODULES,
   FORMAT_MODULES,
   DEPTH_MODULES,
-  RoleModuleId,
-  PerspectiveModuleId,
-  FormatModuleId,
-  DepthModuleId
+  TONE_MODULES,
+  OPENING_MODULES,
+  ANTI_CLICHE_PHRASES,
+  WRITING_CHALLENGES,
+  type DepthModuleId,
 } from './prompt-modules'
 
 import type { UserBehaviorStats } from './user-data'
@@ -26,6 +27,10 @@ export interface SelectedModules {
   perspective: typeof PERSPECTIVE_MODULES[number]
   format: typeof FORMAT_MODULES[number]
   depth: typeof DEPTH_MODULES[DepthModuleId]
+  tone: typeof TONE_MODULES[number]
+  opening: typeof OPENING_MODULES[number]
+  antiCliches: string[]       // 隨機選取的禁止套話
+  writingChallenge?: string   // 偶爾加入的寫作挑戰
 }
 
 /**
@@ -57,11 +62,25 @@ function randomSelect<T>(items: readonly T[]): T {
  * 根據情境選擇所有模組
  */
 export function selectModules(behavior: UserBehavior): SelectedModules {
+  // 隨機選取 3 條反套話指令
+  const shuffledCliches = [...ANTI_CLICHE_PHRASES]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3)
+
+  // 30% 機率加入寫作挑戰
+  const challenge = Math.random() < 0.3
+    ? randomSelect([...WRITING_CHALLENGES])
+    : undefined
+
   return {
     role: randomSelect(ROLE_MODULES),
     perspective: randomSelect(PERSPECTIVE_MODULES),
     format: randomSelect(FORMAT_MODULES),
-    depth: DEPTH_MODULES[selectDepth(behavior)]
+    depth: DEPTH_MODULES[selectDepth(behavior)],
+    tone: randomSelect(TONE_MODULES),
+    opening: randomSelect(OPENING_MODULES),
+    antiCliches: shuffledCliches,
+    writingChallenge: challenge
   }
 }
 
