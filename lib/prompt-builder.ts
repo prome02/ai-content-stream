@@ -468,14 +468,30 @@ ${modeInstruction}
     const keywords = extractKeywordsFromNews(context.news)
     const settingsInstruction = this.buildSettingsInstruction(context.contentSettings)
 
+    // 組合反套話指令
+    const antiClicheSection = modules.antiCliches.length > 0
+      ? `\n【避免以下套話和句式】\n${modules.antiCliches.map(c => `- ${c}`).join('\n')}`
+      : ''
+
+    // 組合寫作挑戰（偶爾出現）
+    const challengeSection = modules.writingChallenge
+      ? `\n【本次寫作挑戰】\n${modules.writingChallenge}`
+      : ''
+
     const systemPrompt = `${modules.role.prompt}
 
+${modules.tone.prompt}
+
 ${modules.perspective.prompt}
+
+${modules.opening.prompt}
 
 ${modules.format.prompt}
 
 ${context.contentSettings ? '' : modules.depth.prompt}
 ${settingsInstruction}
+${antiClicheSection}
+${challengeSection}
 
 請使用繁體中文撰寫。
 
@@ -510,6 +526,10 @@ ${context.userFeedback ? `【用戶意見】
 輸出格式：
 {"content": "文章內容，使用 {{keyword:關鍵字}} 標記可點擊的關鍵字", "keywords": ["關鍵字1", "關鍵字2"], "topics": ["主題1", "主題2"], "style": "casual"}`
 
+    // 動態 temperature: 基礎 0.7-1.0 隨機浮動
+    const baseTemp = 0.7 + Math.random() * 0.3
+    const temperature = Math.round(baseTemp * 100) / 100
+
     // 保持與現有格式相容
     return JSON.stringify({
       model: (typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_OLLAMA_MODEL : process.env.OLLAMA_MODEL) || 'gemma3:12b-cloud',
@@ -518,7 +538,7 @@ ${context.userFeedback ? `【用戶意見】
         { role: 'user', content: userPrompt }
       ],
       options: {
-        temperature: 0.8,
+        temperature,
         top_p: 0.9
       },
       // 記錄使用的模組（供分析用）
@@ -526,7 +546,11 @@ ${context.userFeedback ? `【用戶意見】
         role: modules.role.id,
         perspective: modules.perspective.id,
         format: modules.format.id,
-        depth: modules.depth.id
+        depth: modules.depth.id,
+        tone: modules.tone.id,
+        opening: modules.opening.id,
+        hasChallenge: !!modules.writingChallenge,
+        temperature
       }
     })
   }

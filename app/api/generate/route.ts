@@ -19,6 +19,20 @@ import type {
   InterestCategory
 } from '@/types'
 
+// Per-user used news links tracker (in-memory, avoids repeated news in prompts)
+const usedNewsLinksMap = new Map<string, string[]>()
+const MAX_USED_NEWS_PER_USER = 20
+
+function getUsedNewsLinks(uid: string): string[] {
+  return usedNewsLinksMap.get(uid) || []
+}
+
+function trackUsedNewsLinks(uid: string, links: string[]): void {
+  const existing = usedNewsLinksMap.get(uid) || []
+  const updated = [...existing, ...links].slice(-MAX_USED_NEWS_PER_USER)
+  usedNewsLinksMap.set(uid, updated)
+}
+
 // Initialize services
 const rateLimiter = new RateLimiter({ maxRequests: 20, windowMs: 60 * 60 * 1000 })
 const ollamaClient = new OllamaClient({
@@ -114,13 +128,19 @@ export async function POST(req: NextRequest) {
     const recentInteractionsCount = getRecentLikes(uid, 10)
     const diversityScore = calculateDiversityScore(uid)
 
-    // 抓取相關新聞
+    // 抓取相關新聞（排除已用過的連結）
     const interests = (userPreferences?.interests || []) as InterestCategory[]
     const news = await fetchNews({
       interests,
       maxItems: 5,
-      locale: 'zh-TW'
+      locale: 'zh-TW',
+      excludeLinks: getUsedNewsLinks(uid)
     })
+
+    // 追蹤本次使用的新聞連結
+    if (news.length > 0) {
+      trackUsedNewsLinks(uid, news.map(n => n.link))
+    }
 
     console.log(`[Generate] Fetched ${news.length} news items`)
 
@@ -219,6 +239,10 @@ export async function POST(req: NextRequest) {
         console.log('  Perspective:', promptData._modules.perspective)
         console.log('  Format:', promptData._modules.format)
         console.log('  Depth:', promptData._modules.depth)
+        console.log('  Tone:', promptData._modules.tone)
+        console.log('  Opening:', promptData._modules.opening)
+        console.log('  Has Challenge:', promptData._modules.hasChallenge)
+        console.log('  Temperature:', promptData._modules.temperature)
       }
 
       console.log('\n--- SYSTEM PROMPT ---')
@@ -333,7 +357,9 @@ export async function POST(req: NextRequest) {
           role: 'unknown',
           perspective: 'unknown',
           format: 'unknown',
-          depth: 'standard'
+          depth: 'standard',
+          tone: 'unknown',
+          opening: 'unknown'
         }
 
         console.log('[Generate] Sending request to Ollama...')
@@ -398,6 +424,8 @@ export async function POST(req: NextRequest) {
           perspective_module: usedModules.perspective || 'unknown',
           format_module: usedModules.format || 'unknown',
           depth_module: usedModules.depth || 'standard',
+          tone_module: usedModules.tone || 'unknown',
+          opening_module: usedModules.opening || 'unknown',
           news_count: news.length
         }
 

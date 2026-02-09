@@ -14,25 +14,37 @@ export interface FetchNewsOptions {
   interests: InterestCategory[]
   maxItems?: number
   locale?: string
+  excludeLinks?: string[]  // 排除已用過的新聞連結
 }
 
 const RSS_BASE_URL = 'https://news.google.com/rss/search'
+
+/** Fisher-Yates shuffle */
+function shuffleArray<T>(arr: T[]): T[] {
+  const shuffled = [...arr]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
 
 /**
  * 根據興趣取得 Google 新聞 RSS
  */
 export async function fetchNews(options: FetchNewsOptions): Promise<NewsItem[]> {
-  const { interests, maxItems = 5, locale = 'zh-TW' } = options
+  const { interests, maxItems = 5, locale = 'zh-TW', excludeLinks = [] } = options
 
   if (interests.length === 0) {
     console.log('[NewsFetcher] No interests provided, skipping fetch')
     return []
   }
 
-  // 組合搜尋關鍵字
-  const keywords = interests
+  // 從所有興趣的關鍵字中隨機取樣 3 個（避免每次相同組合）
+  const allKeywords = interests
     .flatMap(interest => INTEREST_CATEGORIES[interest]?.keywords || [])
-    .slice(0, 3)  // 取前 3 個關鍵字避免過於複雜
+  const keywords = shuffleArray(allKeywords)
+    .slice(0, 3)
     .join(' OR ')
 
   const url = buildRssUrl(keywords, locale)
@@ -43,7 +55,7 @@ export async function fetchNews(options: FetchNewsOptions): Promise<NewsItem[]> 
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)'
       },
-      next: { revalidate: 300 }  // 5 分鐘快取
+      next: { revalidate: 300 }  // 5 minutes cache
     })
 
     if (!response.ok) {
@@ -56,8 +68,15 @@ export async function fetchNews(options: FetchNewsOptions): Promise<NewsItem[]> 
     // 篩選 48 小時內的新聞
     const recentItems = filterRecentNews(items, 48)
 
-    console.log(`[NewsFetcher] Found ${recentItems.length} recent items`)
-    return recentItems.slice(0, maxItems)
+    // 排除已用過的新聞
+    const excludeSet = new Set(excludeLinks)
+    const freshItems = recentItems.filter(item => !excludeSet.has(item.link))
+
+    // 隨機打亂順序，避免每次取到相同子集
+    const shuffled = shuffleArray(freshItems)
+
+    console.log(`[NewsFetcher] Found ${recentItems.length} recent, ${freshItems.length} fresh, returning ${Math.min(shuffled.length, maxItems)}`)
+    return shuffled.slice(0, maxItems)
 
   } catch (error) {
     console.error('[NewsFetcher] Error:', error)
