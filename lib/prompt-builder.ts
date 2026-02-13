@@ -1,6 +1,7 @@
 import { type InterestCategory } from '@/types'
 import { formatNewsForPrompt, extractKeywordsFromNews, type NewsItem } from './news-fetcher'
 import { selectModules, getDefaultBehavior, type UserBehavior, type SelectedModules } from './prompt-selector'
+import { getLanguageInstruction } from './locale-utils'
 
 // 互動資料結構
 interface InteractionData {
@@ -128,7 +129,7 @@ class PromptBuilder {
 
 **主要興趣**: ${preferences.interests.join('、')}
 **風格偏好**: ${preferences.style || 'casual'}（輕鬆自然）
-**語言偏好**: ${preferences.language || 'zh-TW'}（台灣繁體中文）
+**語言偏好**: ${preferences.language || 'zh-TW'} (${getLanguageInstruction(preferences.language || 'zh-TW')})
 
 ## 興趣歷史與偏好
 
@@ -493,7 +494,7 @@ ${settingsInstruction}
 ${antiClicheSection}
 ${challengeSection}
 
-請使用繁體中文撰寫。
+${getLanguageInstruction(context.userPreferences.language)}
 
 【關鍵輸出規則】
 - 你的回覆必須且只能是一個 JSON 物件

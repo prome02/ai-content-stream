@@ -16,6 +16,7 @@ import { PromptBuilder, type ModularPromptContext } from '@/lib/prompt-builder'
 import { fetchNews } from '@/lib/news-fetcher'
 import { getDefaultBehavior } from '@/lib/prompt-selector'
 import { MOCK_CONTENT_ITEMS } from '@/lib/mock-data'
+import { getBrowserLocale } from '@/lib/locale-utils'
 import type { ContentItem, ContentSettings, InterestCategory } from '@/types'
 
 interface GenerationState {
@@ -99,12 +100,15 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
         return
       }
 
+      // Detect browser locale
+      const locale = getBrowserLocale()
+
       // Fetch news for prompt context
       const interestCategories = interests as InterestCategory[]
       const news = await fetchNews({
         interests: interestCategories,
         maxItems: 5,
-        locale: 'zh-TW'
+        locale
       })
 
       console.log(`[useContentGeneration] Fetched ${news.length} news items`)
@@ -123,7 +127,7 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
         try {
           // Build prompt
           const context: ModularPromptContext = {
-            userPreferences: { interests, language: 'zh-TW' },
+            userPreferences: { interests, language: locale },
             news,
             behavior: getDefaultBehavior(),
             userFeedback: userFeedback,

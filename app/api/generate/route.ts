@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body: GenerateRequest = await req.json()
-    const { uid, count = 3, mode = 'default' } = body
+    const { uid, count = 3, mode = 'default', locale = 'zh-TW' } = body
 
     // Validate request
     const validationError = validateRequest(body)
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
     const news = await fetchNews({
       interests,
       maxItems: 5,
-      locale: 'zh-TW',
+      locale,
       excludeLinks: getUsedNewsLinks(uid)
     })
 
@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
       const modularPromptContext = {
         userPreferences: {
           interests: userPreferences?.interests || [],
-          language: 'zh-TW'
+          language: locale
         },
         news,
         behavior,  // 使用真實行為或預設
@@ -210,7 +210,7 @@ export async function POST(req: NextRequest) {
     } else {
       // 使用舊的提示詞建構
       const promptContext = {
-        userPreferences: userPreferences || { interests: [], language: 'zh-TW', style: 'casual' },
+        userPreferences: userPreferences || { interests: [], language: locale, style: 'casual' },
         recentInteractions: [], // 暫時使用空陣列
         timeOfDay: getTimeOfDay(),
         mode,
