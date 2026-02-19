@@ -3,21 +3,17 @@
 /**
  * useContentGeneration Hook
  *
- * Generates content directly from browser:
- * 1. Calls Ollama API directly
+ * Generates content via /api/generate (server-side):
+ * 1. Calls /api/generate which holds the Ollama API key securely
  * 2. Saves generated content to Firestore
  * 3. UI updates via Firestore onSnapshot (realtime)
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { generateContent, checkOllamaHealth, type OllamaMessage } from '@/lib/ollama-browser'
 import { saveContent, subscribeToUserFeed } from '@/lib/content-service'
-import { PromptBuilder, type ModularPromptContext } from '@/lib/prompt-builder'
-import { fetchNews } from '@/lib/news-fetcher'
-import { getDefaultBehavior } from '@/lib/prompt-selector'
-import { MOCK_CONTENT_ITEMS } from '@/lib/mock-data'
 import { getBrowserLocale } from '@/lib/locale-utils'
-import type { ContentItem, ContentSettings, InterestCategory } from '@/types'
+import { MOCK_CONTENT_ITEMS } from '@/lib/mock-data'
+import type { ContentItem, ContentSettings } from '@/types'
 
 interface GenerationState {
   isGenerating: boolean
@@ -48,7 +44,6 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
 
   // Subscribe to Firestore feed updates
   const subscribeToFeed = useCallback((userId: string) => {
-    // Unsubscribe previous listener
     if (unsubscribeRef.current) {
       unsubscribeRef.current()
     }
@@ -68,7 +63,7 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
   }, [])
 
   /**
-   * Generate content using Ollama and save to Firestore
+   * Generate content via /api/generate and save results to Firestore
    */
   const generate = useCallback(async (
     userId: string,
@@ -87,121 +82,121 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
       source: null
     })
 
-    // Start listening to Firestore updates
     subscribeToFeed(userId)
 
     try {
-      // Check Ollama availability
-      const isOllamaAvailable = await checkOllamaHealth()
-
-      if (!isOllamaAvailable) {
-        console.warn('[useContentGeneration] Ollama not available, using mock data')
-        await generateMockContent(userId, count)
-        return
-      }
-
-      // Detect browser locale
       const locale = getBrowserLocale()
 
-      // Fetch news for prompt context
-      const interestCategories = interests as InterestCategory[]
-      const news = await fetchNews({
-        interests: interestCategories,
-        maxItems: 5,
-        locale
+      console.log(`[useContentGeneration] Calling /api/generate: count=${count}, locale=${locale}`)
+
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: userId,
+          count,
+          mode: 'default',
+          locale,
+          interests,
+          contentSettings,
+          userFeedback
+        })
       })
 
-      console.log(`[useContentGeneration] Fetched ${news.length} news items`)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        // Rate limit: use fallback contents returned by server
+        if (response.status === 429 && errorData.contents?.length > 0) {
+          console.warn('[useContentGeneration] Rate limit hit, using server fallback content')
+          await persistContents(userId, errorData.contents, 'fallback')
+          setState(prev => ({ ...prev, isGenerating: false, source: 'fallback' }))
+          options.onComplete?.(errorData.contents.length)
+          return
+        }
+        throw new Error(errorData.message || `API error: ${response.status}`)
+      }
 
-      const promptBuilder = new PromptBuilder()
+      const data = await response.json()
 
-      // Generate items one by one
-      for (let i = 0; i < count; i++) {
+      if (!data.success || !data.contents?.length) {
+        throw new Error('No content returned from API')
+      }
+
+      const source: 'ollama' | 'mock' | 'fallback' = data.source === 'ollama' ? 'ollama'
+        : data.source === 'mock' ? 'mock'
+        : 'fallback'
+
+      console.log(`[useContentGeneration] Received ${data.contents.length} items, source=${source}`)
+
+      // Save each item to Firestore one by one to trigger onSnapshot progressively
+      for (let i = 0; i < data.contents.length; i++) {
         if (abortRef.current) {
           console.log('[useContentGeneration] Generation aborted')
           break
         }
 
-        setState(prev => ({ ...prev, currentIndex: i }))
+        setState(prev => ({ ...prev, currentIndex: i, source }))
 
-        try {
-          // Build prompt
-          const context: ModularPromptContext = {
-            userPreferences: { interests, language: locale },
-            news,
-            behavior: getDefaultBehavior(),
-            userFeedback: userFeedback,
-            contentSettings,
-          }
+        const item = data.contents[i]
+        await saveContent(userId, {
+          content: item.content || '',
+          hashtags: item.hashtags || [],
+          topics: item.topics || [],
+          style: item.style || 'casual',
+          qualityScore: item.qualityScore || 80,
+          likes: 0,
+          dislikes: 0,
+          usedBy: [],
+          reuseCount: 0
+        })
 
-          const promptJson = promptBuilder.buildModularPrompt(context)
-          const promptData = JSON.parse(promptJson)
-
-          const messages: OllamaMessage[] = promptData.messages
-
-          console.log(`[useContentGeneration] Generating item ${i + 1}/${count} with model: ${promptData.model || 'default'}`)
-
-          // Call Ollama directly from browser
-          const response = await generateContent(
-            messages,
-            promptData.options || {},
-            promptData.model ? { model: promptData.model } : {}
-          )
-
-          // Parse response
-          const parsed = promptBuilder.parseResponse(response.message.content)
-
-          if (parsed.length > 0) {
-            const item = parsed[0]
-
-            // Save to Firestore (this triggers onSnapshot update)
-            await saveContent(userId, {
-              content: item.content || '',
-              hashtags: item.hashtags || [],
-              topics: item.topics || [],
-              style: item.style || 'casual',
-              qualityScore: 80 + Math.floor(Math.random() * 20),
-              likes: 0,
-              dislikes: 0,
-              usedBy: [],
-              reuseCount: 0
-            })
-
-            setState(prev => ({ ...prev, source: 'ollama' }))
-            options.onItemGenerated?.(item as ContentItem, i)
-
-            console.log(`[useContentGeneration] Item ${i + 1}/${count} saved to Firestore`)
-          }
-        } catch (itemError) {
-          console.error(`[useContentGeneration] Failed to generate item ${i + 1}:`, itemError)
-          // Continue with next item
-        }
+        options.onItemGenerated?.(item as ContentItem, i)
+        console.log(`[useContentGeneration] Item ${i + 1}/${data.contents.length} saved to Firestore`)
       }
 
       setState(prev => ({ ...prev, isGenerating: false }))
-      options.onComplete?.(count)
+      options.onComplete?.(data.contents.length)
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Generation failed'
       console.error('[useContentGeneration] Error:', errorMessage)
 
-      setState(prev => ({
-        ...prev,
-        isGenerating: false,
-        error: errorMessage
-      }))
+      setState(prev => ({ ...prev, isGenerating: false, error: errorMessage }))
 
-      // Fallback to mock data
       await generateMockContent(userId, count)
       options.onError?.(errorMessage)
     }
   }, [subscribeToFeed, options])
 
   /**
-   * Generate mock content (fallback)
+   * Persist a list of ContentItems to Firestore
+   */
+  const persistContents = async (
+    userId: string,
+    contents: ContentItem[],
+    source: 'ollama' | 'mock' | 'fallback'
+  ) => {
+    for (const item of contents) {
+      if (abortRef.current) break
+      await saveContent(userId, {
+        content: item.content || '',
+        hashtags: item.hashtags || [],
+        topics: item.topics || [],
+        style: item.style || 'casual',
+        qualityScore: item.qualityScore || 80,
+        likes: 0,
+        dislikes: 0,
+        usedBy: [],
+        reuseCount: 0
+      })
+    }
+  }
+
+  /**
+   * Generate mock content (local fallback when API is unreachable)
    */
   const generateMockContent = async (userId: string, count: number) => {
-    console.log('[useContentGeneration] Using mock content')
+    console.log('[useContentGeneration] Using local mock content')
 
     const mockItems = MOCK_CONTENT_ITEMS
       .sort(() => Math.random() - 0.5)
@@ -212,7 +207,6 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
 
       setState(prev => ({ ...prev, currentIndex: i, source: 'mock' }))
 
-      // Simulate delay
       await new Promise(resolve => setTimeout(resolve, 300))
 
       await saveContent(userId, {
@@ -231,7 +225,7 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
     }
 
     setState(prev => ({ ...prev, isGenerating: false }))
-    options.onComplete?.(count)
+    options.onComplete?.(mockItems.length)
   }
 
   /**
@@ -254,7 +248,6 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
   }, [])
 
   return {
-    // State
     feedItems,
     isGenerating: state.isGenerating,
     currentIndex: state.currentIndex,
@@ -262,7 +255,6 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
     error: state.error,
     source: state.source,
 
-    // Actions
     generate,
     stop,
     clearFeed,

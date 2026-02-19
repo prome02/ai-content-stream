@@ -1,5 +1,6 @@
 interface OllamaConfig {
   baseUrl?: string          // API 基礎 URL
+  apiKey?: string           // Ollama Cloud API Key (Bearer token)
   defaultModel?: string      // 預設模型
   timeout?: number           // 請求逾時（毫秒）
   maxRetries?: number        // 最大重試次數
@@ -56,6 +57,7 @@ export class OllamaClient {
   constructor(config: OllamaConfig = {}) {
     this.config = {
       baseUrl: config.baseUrl || 'http://localhost:11434',
+      apiKey: config.apiKey || '',
       defaultModel: config.defaultModel || 'gemma3:12b-cloud',
       timeout: config.timeout || 30000, // 30秒
       maxRetries: config.maxRetries || 3,
@@ -138,7 +140,13 @@ export class OllamaClient {
    */
   async listModels(): Promise<string[]> {
     try {
+      const headers: Record<string, string> = {}
+      if (this.config.apiKey) {
+        headers['Authorization'] = `Bearer ${this.config.apiKey}`
+      }
+
       const response = await fetch(`${this.config.baseUrl}/api/tags`, {
+        headers,
         signal: this.controller.signal
       })
       
@@ -165,17 +173,23 @@ export class OllamaClient {
 
   /**
    * 檢查 Ollama 是否可用
+   * Cloud 模式（有 API key）跳過健康檢查，直接視為可用
    */
   async healthCheck(): Promise<boolean> {
+    if (this.config.apiKey) {
+      console.log('[Ollama] Cloud mode detected, skipping health check')
+      return true
+    }
+
     try {
       const response = await fetch(`${this.config.baseUrl}/api/tags`, {
         signal: AbortSignal.timeout(5000)
       })
-      
+
       return response.ok
-      
+
     } catch (error) {
-      console.warn('Ollama 健康檢查失敗:', error instanceof Error ? error.message : String(error))
+      console.warn('[Ollama] Health check failed:', error instanceof Error ? error.message : String(error))
       return false
     }
   }
@@ -187,18 +201,28 @@ export class OllamaClient {
     this.controller.abort()
   }
 
+  get isCloudMode(): boolean {
+    return !!this.config.apiKey
+  }
+
   private async sendRequest(
     request: OllamaRequest,
     options: { signal?: AbortSignal }
   ): Promise<OllamaResponse> {
-    const { baseUrl } = this.config
+    const { baseUrl, apiKey } = this.config
     const signal = options.signal || this.controller.signal
-    
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    }
+
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`
+    }
+
     const response = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify(request),
       signal
     })
