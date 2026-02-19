@@ -89,6 +89,8 @@ export interface GenerateRequest {
   mode?: 'default' | 'creative' | 'focused'
   interests?: string[]        // Client 直接傳遞興趣標籤（不再從 server 讀取）
   locale?: string             // BCP 47 locale (e.g. 'zh-TW', 'en-US'), detected from browser
+  contentSettings?: ContentSettings  // 內容偏好設定
+  userFeedback?: string       // 關鍵字點擊或用戶意見
 }
 
 export interface GenerateResponse {
