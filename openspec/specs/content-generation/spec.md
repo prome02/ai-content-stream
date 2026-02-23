@@ -18,3 +18,11 @@ When `contentSettings` is provided, the system SHALL use the user's explicit set
 #### Scenario: Default settings for new user
 - **WHEN** a user has not configured contentSettings (defaults are used)
 - **THEN** the system SHALL use `DEFAULT_CONTENT_SETTINGS` values, and the behavior-based depth module SHALL still be suppressed in favor of the default settings' depth value
+
+#### Scenario: Content generated in browser locale language
+- **WHEN** the browser locale is `'en-US'` and content generation is triggered
+- **THEN** the system prompt SHALL contain an English language instruction instead of a Traditional Chinese instruction, and the LLM SHALL be directed to write in English
+
+#### Scenario: Content generated with default locale
+- **WHEN** the browser locale is `'zh-TW'` or not provided
+- **THEN** the system prompt SHALL contain the Traditional Chinese language instruction, maintaining backward compatibility
