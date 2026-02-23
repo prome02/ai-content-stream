@@ -3,6 +3,8 @@
 ### Requirement: ContentSettings priority over behavior-based depth
 When `contentSettings` is provided, the system SHALL use the user's explicit settings (tone, style, depth, length, topic, freshness) as the authoritative source for prompt instructions. The behavior-based depth module from `selectModules()` SHALL NOT override the user's settings.
 
+Additionally, the system SHALL use the detected browser locale (passed via `ModularPromptContext.userPreferences.language`) to determine the language of the generated content. The system prompt's language instruction SHALL be dynamically generated based on this locale value instead of being hardcoded to Traditional Chinese.
+
 #### Scenario: User sets depth to brief via Settings drawer
 - **WHEN** a user selects "brief" depth in Settings drawer and new content is generated
 - **THEN** the generated prompt SHALL include the brief depth instruction ("200-300 words") from `contentSettings`, and SHALL NOT include a conflicting depth instruction from the behavior-based module
