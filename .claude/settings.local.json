@@ -13,7 +13,11 @@
       "Bash(openspec instructions proposal:*)",
       "Bash(openspec instructions design:*)",
       "Bash(openspec instructions specs:*)",
-      "Bash(openspec instructions tasks:*)"
+      "Bash(openspec instructions tasks:*)",
+      "Bash(openspec instructions apply:*)",
+      "Bash(gh pr list:*)",
+      "Bash(git status:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

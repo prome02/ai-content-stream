@@ -356,6 +356,35 @@ describe('PromptBuilder.buildModularPrompt', () => {
     expect(userPrompt).toContain('I want more technical depth')
   })
 
+  test('should use locale-based language instruction in system prompt for zh-TW', () => {
+    const parsed = JSON.parse(builder.buildModularPrompt(baseContext))
+    const sysPrompt: string = parsed.messages[0].content
+    // zh-TW should produce Traditional Chinese instruction
+    expect(sysPrompt).toContain('Traditional Chinese')
+  })
+
+  test('should use English language instruction when language is en-US', () => {
+    const enContext: ModularPromptContext = {
+      ...baseContext,
+      userPreferences: { interests: ['tech'], language: 'en-US' },
+    }
+    const parsed = JSON.parse(builder.buildModularPrompt(enContext))
+    const sysPrompt: string = parsed.messages[0].content
+    expect(sysPrompt).toContain('English')
+    // Should NOT contain the old hardcoded Chinese instruction
+    expect(sysPrompt).not.toContain('Traditional Chinese')
+  })
+
+  test('should use Japanese language instruction when language is ja', () => {
+    const jaContext: ModularPromptContext = {
+      ...baseContext,
+      userPreferences: { interests: ['tech'], language: 'ja' },
+    }
+    const parsed = JSON.parse(builder.buildModularPrompt(jaContext))
+    const sysPrompt: string = parsed.messages[0].content
+    expect(sysPrompt).toContain('Japanese')
+  })
+
   test('modules should differ across multiple calls (diversity)', () => {
     const roles = new Set<string>()
     const tones = new Set<string>()

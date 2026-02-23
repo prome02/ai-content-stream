@@ -35,19 +35,31 @@ function trackUsedNewsLinks(uid: string, links: string[]): void {
 
 // Initialize services
 const rateLimiter = new RateLimiter({ maxRequests: 20, windowMs: 60 * 60 * 1000 })
+
+const ollamaApiKey = process.env.OLLAMA_API_KEY || ''
+const isOllamaCloud = !!ollamaApiKey
+
+// Cloud mode: use ollama.com endpoint; local mode: use OLLAMA_BASE_URL
+const ollamaBaseUrl = isOllamaCloud
+  ? 'https://ollama.com'
+  : (process.env.OLLAMA_BASE_URL || 'http://localhost:11434')
+
 const ollamaClient = new OllamaClient({
-  baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+  baseUrl: ollamaBaseUrl,
+  apiKey: ollamaApiKey,
   defaultModel: process.env.OLLAMA_MODEL || 'gemma3:12b-cloud',
   timeout: 90000, // 90 seconds for cloud LLM generation
   maxRetries: 2
 })
+
+console.log(`[Generate] Ollama mode: ${isOllamaCloud ? 'cloud' : 'local'}, baseUrl: ${ollamaBaseUrl}`)
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now()
 
   try {
     const body: GenerateRequest = await req.json()
-    const { uid, count = 3, mode = 'default' } = body
+    const { uid, count = 3, mode = 'default', locale = 'zh-TW', contentSettings, userFeedback: clientUserFeedback } = body
 
     // Validate request
     const validationError = validateRequest(body)
@@ -133,7 +145,7 @@ export async function POST(req: NextRequest) {
     const news = await fetchNews({
       interests,
       maxItems: 5,
-      locale: 'zh-TW',
+      locale,
       excludeLinks: getUsedNewsLinks(uid)
     })
 
@@ -153,7 +165,7 @@ export async function POST(req: NextRequest) {
     if (hasModularFunction) {
       // Phase 3: 使用真實用戶行為統計
       let behavior = getDefaultBehavior()
-      let userFeedback = undefined
+      let serverUserFeedback: string | undefined = undefined
 
       try {
         const behaviorStats = await getUserBehaviorStats(uid)
@@ -166,27 +178,31 @@ export async function POST(req: NextRequest) {
         })
 
         behavior = {
-          avgDwellTime: 0, // UserBehaviorStats doesn't have this field, using default
+          avgDwellTime: 0,
           recentLikes: behaviorStats.recentLikes,
           recentSkips: behaviorStats.recentSkips,
           hasFeedback: behaviorStats.hasFeedback,
           lastKeywordClick: behaviorStats.recentKeywords[0]
         }
 
-        userFeedback = behaviorStats.lastFeedback
+        serverUserFeedback = behaviorStats.lastFeedback
       } catch (error) {
         console.warn('[Generate] Failed to get user behavior stats, using default:', error)
       }
+
+      // Client-provided feedback (keyword click) takes priority over server-side
+      const resolvedUserFeedback = clientUserFeedback || serverUserFeedback
 
       // 使用模組化提示詞建構
       const modularPromptContext = {
         userPreferences: {
           interests: userPreferences?.interests || [],
-          language: 'zh-TW'
+          language: locale
         },
         news,
-        behavior,  // 使用真實行為或預設
-        userFeedback
+        behavior,
+        userFeedback: resolvedUserFeedback,
+        contentSettings
       }
 
       prompt = (promptBuilder as any).buildModularPrompt(modularPromptContext)
@@ -210,7 +226,7 @@ export async function POST(req: NextRequest) {
     } else {
       // 使用舊的提示詞建構
       const promptContext = {
-        userPreferences: userPreferences || { interests: [], language: 'zh-TW', style: 'casual' },
+        userPreferences: userPreferences || { interests: [], language: locale, style: 'casual' },
         recentInteractions: [], // 暫時使用空陣列
         timeOfDay: getTimeOfDay(),
         mode,
@@ -348,9 +364,6 @@ export async function POST(req: NextRequest) {
 
         // Build prompt using PromptBuilder
         const promptData = JSON.parse(prompt)
-        const systemMessage = promptData.messages.find((m: any) => m.role === 'system')?.content || ''
-        const userMessage = promptData.messages.find((m: any) => m.role === 'user')?.content || ''
-        const fullPrompt = `${systemMessage}\n\n${userMessage}`
 
         // 檢查是否有模組使用資訊
         const usedModules = promptData._modules || {
@@ -365,11 +378,14 @@ export async function POST(req: NextRequest) {
         console.log('[Generate] Sending request to Ollama...')
         console.log('[Generate] Used modules:', usedModules)
 
-        // Call Ollama API
-        const ollamaResponse = await ollamaClient.generate(
-          fullPrompt,
-          promptData.model || process.env.OLLAMA_MODEL || 'gemma3:12b-cloud',
-          promptData.options || {}
+        // Call Ollama API using chat() to preserve system/user message structure
+        const ollamaResponse = await ollamaClient.chat(
+          {
+            model: promptData.model || process.env.OLLAMA_MODEL || 'gemma3:12b-cloud',
+            messages: promptData.messages,
+            stream: false,
+            options: promptData.options || {}
+          }
         )
 
         console.log('[Generate] Ollama response received')
