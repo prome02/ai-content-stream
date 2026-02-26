@@ -48,6 +48,7 @@ const ollamaClient = new OllamaClient({
   baseUrl: ollamaBaseUrl,
   apiKey: ollamaApiKey,
   defaultModel: process.env.OLLAMA_MODEL || 'gemma3:12b-cloud',
+  models: (process.env.OLLAMA_MODELS || 'gemma3:12b-cloud,llama3.1:70b,qwen2.5:72b').split(','),
   timeout: 90000, // 90 seconds for cloud LLM generation
   maxRetries: 2
 })
@@ -379,16 +380,19 @@ export async function POST(req: NextRequest) {
         console.log('[Generate] Used modules:', usedModules)
 
         // Call Ollama API using chat() to preserve system/user message structure
+        // Use getModel() for random/preferred model selection
+        const selectedModel = ollamaClient.getModel()
+        
         const ollamaResponse = await ollamaClient.chat(
           {
-            model: promptData.model || process.env.OLLAMA_MODEL || 'gemma3:12b-cloud',
+            model: selectedModel,
             messages: promptData.messages,
             stream: false,
             options: promptData.options || {}
           }
         )
 
-        console.log('[Generate] Ollama response received')
+        console.log(`[Generate] Ollama response received, model used: ${selectedModel}`)
 
         // Parse the response
         const parsedContent = promptBuilder.parseResponse(ollamaResponse.message.content)

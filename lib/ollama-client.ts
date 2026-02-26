@@ -1,7 +1,9 @@
 interface OllamaConfig {
   baseUrl?: string          // API 基礎 URL
   apiKey?: string           // Ollama Cloud API Key (Bearer token)
-  defaultModel?: string      // 預設模型
+  defaultModel?: string      // 單一預設模型
+  models?: string[]         // 多模型列表，隨機選擇
+  preferredModel?: string   // 用戶偏好模型
   timeout?: number           // 請求逾時（毫秒）
   maxRetries?: number        // 最大重試次數
   retryDelay?: number        // 重試延遲（毫秒）
@@ -52,19 +54,68 @@ class OllamaError extends Error {
 
 export class OllamaClient {
   private readonly config: Required<OllamaConfig>
-  private readonly controller: AbortController
+  private readonly controller: AbortSignal
+  private readonly availableModels: string[]
 
   constructor(config: OllamaConfig = {}) {
+    // Default models list for random selection
+    const defaultModels = [
+      'gemma3:12b-cloud',
+      'llama3.1:70b',
+      'qwen2.5:72b'
+    ]
+
     this.config = {
       baseUrl: config.baseUrl || 'http://localhost:11434',
       apiKey: config.apiKey || '',
       defaultModel: config.defaultModel || 'gemma3:12b-cloud',
+      models: config.models || defaultModels,
+      preferredModel: config.preferredModel || '',
       timeout: config.timeout || 30000, // 30秒
       maxRetries: config.maxRetries || 3,
       retryDelay: config.retryDelay || 1000,
     }
 
-    this.controller = new AbortController()
+    // Store available models
+    this.availableModels = this.config.models
+    this.controller = AbortSignal.timeout(this.config.timeout)
+  }
+
+  /**
+   * Get the model to use for generation
+   * Priority: preferredModel (if set) > random selection from models
+   */
+  getModel(): string {
+    // If user has a preferred model, use it
+    if (this.config.preferredModel && this.availableModels.includes(this.config.preferredModel)) {
+      console.log(`[Ollama] Using preferred model: ${this.config.preferredModel}`)
+      return this.config.preferredModel
+    }
+
+    // Randomly select from available models for diversity
+    const randomIndex = Math.floor(Math.random() * this.availableModels.length)
+    const selectedModel = this.availableModels[randomIndex]
+    console.log(`[Ollama] Randomly selected model: ${selectedModel} (from ${this.availableModels.length} models)`)
+    return selectedModel
+  }
+
+  /**
+   * Get list of available models
+   */
+  getAvailableModels(): string[] {
+    return [...this.availableModels]
+  }
+
+  /**
+   * Set preferred model
+   */
+  setPreferredModel(model: string): void {
+    if (this.availableModels.includes(model)) {
+      this.config.preferredModel = model
+      console.log(`[Ollama] Preferred model set to: ${model}`)
+    } else {
+      console.warn(`[Ollama] Model not in available list: ${model}`)
+    }
   }
 
   /**
@@ -114,11 +165,14 @@ export class OllamaClient {
    */
   async generate(
     prompt: string,
-    model: string = this.config.defaultModel,
+    model?: string,
     options: Partial<OllamaRequest['options']> = {}
   ): Promise<OllamaResponse> {
+    // Use provided model, or getModel() for random/preferred selection
+    const selectedModel = model || this.getModel()
+    
     const request: OllamaRequest = {
-      model,
+      model: selectedModel,
       messages: [
         {
           role: 'user',
@@ -334,6 +388,11 @@ export class OllamaClient {
 export const defaultOllamaClient = new OllamaClient({
   baseUrl: 'http://localhost:11434',
   defaultModel: 'gemma3:12b-cloud',
+  models: [
+    'gemma3:12b-cloud',
+    'llama3.1:70b',
+    'qwen2.5:72b'
+  ],
   timeout: 90000,
   maxRetries: 3,
   retryDelay: 1000
