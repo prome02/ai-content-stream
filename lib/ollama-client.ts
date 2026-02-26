@@ -58,11 +58,11 @@ export class OllamaClient {
   private readonly availableModels: string[]
 
   constructor(config: OllamaConfig = {}) {
-    // Default models list for random selection
+    // Default models list for random selection (Ollama Cloud verified)
     const defaultModels = [
-      'gemma3:12b-cloud',
-      'llama3.1:70b',
-      'qwen2.5:72b'
+      'minimax-m2.5',
+      'qwen3.5:397b',
+      'gemma3:27b'
     ]
 
     this.config = {
@@ -387,11 +387,11 @@ export class OllamaClient {
 // Default instance
 export const defaultOllamaClient = new OllamaClient({
   baseUrl: 'http://localhost:11434',
-  defaultModel: 'gemma3:12b-cloud',
+  defaultModel: 'minimax-m2.5',
   models: [
-    'gemma3:12b-cloud',
-    'llama3.1:70b',
-    'qwen2.5:72b'
+    'minimax-m2.5',
+    'qwen3.5:397b',
+    'gemma3:27b'
   ],
   timeout: 90000,
   maxRetries: 3,

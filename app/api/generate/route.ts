@@ -47,8 +47,8 @@ const ollamaBaseUrl = isOllamaCloud
 const ollamaClient = new OllamaClient({
   baseUrl: ollamaBaseUrl,
   apiKey: ollamaApiKey,
-  defaultModel: process.env.OLLAMA_MODEL || 'gemma3:12b-cloud',
-  models: (process.env.OLLAMA_MODELS || 'gemma3:12b-cloud,llama3.1:70b,qwen2.5:72b').split(','),
+  defaultModel: process.env.OLLAMA_MODEL || 'minimax-m2.5',
+  models: (process.env.OLLAMA_MODELS || 'minimax-m2.5,qwen3.5:397b,gemma3:27b').split(','),
   timeout: 90000, // 90 seconds for cloud LLM generation
   maxRetries: 2
 })
