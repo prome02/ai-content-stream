@@ -124,6 +124,36 @@ function initializeFirebaseClient(): void {
   }
 }
 
+
+/**
+ * Initialize Firebase for server-side Firestore access
+ */
+function initializeFirebaseServer(): void {
+  try {
+    if (!app) {
+      app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
+      console.log('[Firebase] Server app initialized')
+    }
+
+    if (!db) {
+      db = getFirestore(app)
+      if (USE_EMULATOR) {
+        try {
+          connectFirestoreEmulator(db, '127.0.0.1', 8080)
+          console.log('[Firebase] Server Firestore connected to emulator (127.0.0.1:8080)')
+        } catch (emulatorError: any) {
+          if (!String(emulatorError?.message || '').includes('already')) {
+            console.warn('[Firebase] Server Firestore emulator warning:', emulatorError?.message || emulatorError)
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Firebase] Server initialization failed:', error)
+    throw error
+  }
+}
+
 // Initialize on module load (client-side only)
 if (isBrowser()) {
   initializeFirebaseClient()
@@ -149,12 +179,12 @@ export function getFirebaseAuth(): Auth | undefined {
  * Returns undefined on server-side
  */
 export function getFirestoreDb(): Firestore | undefined {
-  if (!isBrowser()) {
-    console.log('[Firebase] Firestore not available on server-side')
-    return undefined
-  }
   if (!db) {
-    initializeFirebaseClient()
+    if (isBrowser()) {
+      initializeFirebaseClient()
+    } else {
+      initializeFirebaseServer()
+    }
   }
   return db
 }

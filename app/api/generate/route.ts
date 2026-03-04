@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { RateLimiter } from '@/services/rate-limiter'
 import ContentCache from '@/services/content-cache.service'
 import { PromptBuilder } from '@/lib/prompt-builder'
-import { getUserPreferences } from '@/lib/user-data'
 import { MOCK_CONTENT_ITEMS } from '@/lib/mock-data'
 import { OllamaClient } from '@/lib/ollama-client'
 import { validateRequest } from '@/lib/api-utils'
@@ -60,7 +59,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const body: GenerateRequest = await req.json()
-    const { uid, count = 3, mode = 'default', locale = 'zh-TW', contentSettings, userFeedback: clientUserFeedback } = body
+    const {
+      uid,
+      count = 3,
+      mode = 'default',
+      locale = 'zh-TW',
+      interests: clientInterests = [],
+      contentSettings,
+      userFeedback: clientUserFeedback
+    } = body
 
     // Validate request
     const validationError = validateRequest(body)
@@ -101,11 +108,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. 檢查快取
-    const userPreferences = await getUserPreferences(uid)
     const cachedContent = await ContentCache.getContentForUser(
       uid,
       count,
-      userPreferences?.interests || []
+      clientInterests
     )
 
     if (cachedContent.length >= count) {
@@ -142,7 +148,7 @@ export async function POST(req: NextRequest) {
     const diversityScore = calculateDiversityScore(uid)
 
     // 抓取相關新聞（排除已用過的連結）
-    const interests = (userPreferences?.interests || []) as InterestCategory[]
+    const interests = clientInterests as InterestCategory[]
     const news = await fetchNews({
       interests,
       maxItems: 5,
@@ -197,7 +203,7 @@ export async function POST(req: NextRequest) {
       // 使用模組化提示詞建構
       const modularPromptContext = {
         userPreferences: {
-          interests: userPreferences?.interests || [],
+          interests: clientInterests,
           language: locale
         },
         news,
@@ -214,8 +220,8 @@ export async function POST(req: NextRequest) {
         const modularInfo = {
           news_count: news.length,
           has_behavior: !!behavior,
-          has_feedback: !!userFeedback,
-          interests_count: userPreferences?.interests?.length || 0
+          has_feedback: !!resolvedUserFeedback,
+          interests_count: clientInterests.length
         }
         console.log('[Generate] Modular context:', modularInfo)
 
@@ -227,7 +233,7 @@ export async function POST(req: NextRequest) {
     } else {
       // 使用舊的提示詞建構
       const promptContext = {
-        userPreferences: userPreferences || { interests: [], language: locale, style: 'casual' },
+        userPreferences: { interests: clientInterests, language: locale, style: 'casual' as const },
         recentInteractions: [], // 暫時使用空陣列
         timeOfDay: getTimeOfDay(),
         mode,
@@ -292,7 +298,7 @@ export async function POST(req: NextRequest) {
           mode: hasModularFunction ? 'modular' : 'legacy',
           promptData: promptData,
           newsCount: news.length,
-          interests: userPreferences?.interests || []
+          interests: clientInterests
         }
 
         fs.writeFileSync(logFile, JSON.stringify(logData, null, 2), 'utf8')

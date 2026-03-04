@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Heart, ThumbsDown, MoreHorizontal, MessageSquare, Share2 } from 'lucide-react'
 import { useInteractionTracking } from '@/app/hooks/useInteractionTracking'
 import AbTestingManager from '@/lib/ab-testing'
@@ -28,19 +28,7 @@ export default function ContentCard({ content, onLike, onDislike, onKeywordClick
   // 使用行為追蹤 hook - 取得記錄互動的方法
   const { recordInteraction } = useInteractionTracking(content.id)
 
-  // 從 localStorage 讀取使用者的互動狀態
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const interactions = JSON.parse(localStorage.getItem('aipcs_interactions') || '{}')
-      const userInteraction = interactions[content.id]
-      
-      if (userInteraction === 'like') {
-        setLiked(true)
-      } else if (userInteraction === 'dislike') {
-        setDisliked(true)
-      }
-    }
-  }, [content.id])
+
 
   // 格式化時間
   const formatTime = (date: Date | string) => {
@@ -69,12 +57,7 @@ export default function ContentCard({ content, onLike, onDislike, onKeywordClick
         setLocalDislikes(prev => prev - 1)
       }
       
-      // 儲存到 localStorage + 更新本地分數
-      if (typeof window !== 'undefined') {
-        const interactions = JSON.parse(localStorage.getItem('aipcs_interactions') || '{}')
-        interactions[content.id] = 'like'
-        localStorage.setItem('aipcs_interactions', JSON.stringify(interactions))
-      }
+      // 互動狀態由 Firestore 與 API 管理，避免 localStorage 與雲端資料不同步
       
       // 呼叫互動 API 發送品質分數更新
       try {
@@ -140,12 +123,7 @@ export default function ContentCard({ content, onLike, onDislike, onKeywordClick
         setLocalLikes(prev => prev - 1)
       }
       
-      // 儲存到 localStorage + 更新本地分數
-      if (typeof window !== 'undefined') {
-        const interactions = JSON.parse(localStorage.getItem('aipcs_interactions') || '{}')
-        interactions[content.id] = 'dislike'
-        localStorage.setItem('aipcs_interactions', JSON.stringify(interactions))
-      }
+      // 互動狀態由 Firestore 與 API 管理，避免 localStorage 與雲端資料不同步
       
        // 呼叫互動 API 發送品質分數更新
       try {
