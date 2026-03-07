@@ -112,6 +112,9 @@ nul
 # ESLint cache
 .eslintcache
 
+# Bun lockfile
+bun.lock
+
 # Development/testing files (generated prompt outputs and quick tests)
 README-PROMPT-OUTPUT.md
 quick-test.bat
