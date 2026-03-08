@@ -359,7 +359,7 @@ export class OllamaClient {
     prompt: string,
     model: string = 'gemma3:4b'
   ): Promise<OllamaResponse> {
-    console.log('🧪 模擬 Ollama 生成:', prompt.substring(0, 50) + '...')
+    console.log('[Test] 模擬 Ollama 生成:', prompt.substring(0, 50) + '...')
     
     // 模擬延遲
     const delay = Math.random() * 2000 + 1000

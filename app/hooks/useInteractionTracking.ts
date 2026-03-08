@@ -63,7 +63,7 @@ async function saveInteraction(event: InteractionEvent): Promise<void> {
     
     // 開發環境記錄
     if (process.env.NODE_ENV === 'development') {
-      console.log('📊 互動事件已儲存:', event.contentId, event.type)
+      console.log('[Interaction] Event saved:', event.contentId, event.type)
     }
 
     // 記錄到 Firebase Analytics（客戶端時）

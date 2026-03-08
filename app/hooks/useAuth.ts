@@ -166,7 +166,7 @@ export function useAuth() {
   }
 
   const signInWithMock = () => {
-    console.log('🚫 signInWithMock 已被禁用')
+    console.log('[Auth] signInWithMock disabled - use Firebase authentication')
     setAuthState(prev => ({ 
       ...prev, 
       error: '模擬使用者登入已被禁用，請使用 Firebase 真實身份驗證' 
@@ -174,7 +174,7 @@ export function useAuth() {
   }
   
   const fastLogin = () => {
-    console.log('🚫 fastLogin 已被禁用')
+    console.log('[Auth] fastLogin disabled - use Firebase authentication')
     setAuthState(prev => ({ 
       ...prev, 
       error: '快速登入已被禁用，請使用 Firebase 真實身份驗證' 

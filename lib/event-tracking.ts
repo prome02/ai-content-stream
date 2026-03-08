@@ -110,7 +110,7 @@ class EventTrackingManager {
     }
     
     this.events.push(event)
-    console.log(`📊 事件追蹤: ${event_type}`, { uid, variant: session.variant, sequence_id })
+    console.log(`[Event] 事件追蹤: ${event_type}`, { uid, variant: session.variant, sequence_id })
     
     // 更新會話統計
     if (event_type === 'content_view') {

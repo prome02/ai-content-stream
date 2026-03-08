@@ -90,7 +90,7 @@ export default function ContentCard({ content, onLike, onDislike, onKeywordClick
         
         if (response.ok) {
           const data = await response.json()
-          console.log('✅ 點讚成功:', data)
+          console.log('[OK] 點讚成功:', data)
           
           // 追蹤事件
           try {
@@ -161,7 +161,7 @@ export default function ContentCard({ content, onLike, onDislike, onKeywordClick
         
         if (response.ok) {
           const data = await response.json()
-          console.log('👎 不讚成功:', data)
+          console.log('[Down] 不讚成功:', data)
           
           // 追蹤事件
           try {

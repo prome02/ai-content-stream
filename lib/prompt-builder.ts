@@ -171,7 +171,7 @@ ${modeInstruction}
   {
     "content": "內容文字",
     "hashtags": ["#標籤1", "#標籤2"],
-    "emojis": ["😊", "🔥"],
+    "emojis": ["", ""],
     "topics": ["主題1", "主題2"],
     "style": "casual 或 formal"
   }
@@ -253,12 +253,12 @@ ${modeInstruction}
    */
   private getDiversityInstruction(score: number): string {
     if (score < 0.3) {
-      return '⚠️ 使用者互動歷史顯示內容多樣性不足，請嘗試引入新的主題和觀點，擴展興趣範圍。'
+      return '[Warn] 使用者互動歷史顯示內容多樣性不足，請嘗試引入新的主題和觀點，擴展興趣範圍。'
     }
     if (score > 0.8) {
-      return '🎯 使用者對多樣主題感興趣，請提供更深入、專業的內容，聚焦於核心興趣的深度探索。'
+      return '[Target] 使用者對多樣主題感興趣，請提供更深入、專業的內容，聚焦於核心興趣的深度探索。'
     }
-    return '🎯 平衡策略：混合熟悉的興趣主題與適度的新探索，保持新鮮感但不偏離核心興趣。'
+    return '[Target] 平衡策略：混合熟悉的興趣主題與適度的新探索，保持新鮮感但不偏離核心興趣。'
   }
 
   /**

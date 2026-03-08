@@ -127,7 +127,7 @@
 //     this.assignments.set(uid, assignment)
 //     this.saveToLocalStorage(uid, assignment)
 //
-//     console.log(`🎯 分配使用者 ${uid} 到變體 ${variant}`)
+//     console.log(`[ABTest] Assign user ${uid} to variant ${variant}`)
 //     return variant
 //   }
 

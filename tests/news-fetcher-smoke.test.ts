@@ -15,24 +15,24 @@ async function smokeTest() {
             locale: 'zh-TW'
         })
 
-        console.log(`✅ 成功取得 ${items.length} 條新聞`)
+        console.log(`[OK] 成功取得 ${items.length} 條新聞`)
         items.forEach((it, i) => {
             console.log(`  ${i + 1}. ${it.title} (${it.source})`)
         })
     } catch (err) {
-        console.error('❌ 基本抓取失敗:', err)
+        console.error('[ERR] 基本抓取失敗:', err)
         process.exit(1)
     }
 
     // 2) 空興趣情境
     const empty = await fetchNews({ interests: [] })
-    console.log(`\n✅ 空興趣回傳 ${empty.length} 條（預期 0）`)
+    console.log(`\n[OK] 空興趣回傳 ${empty.length} 條（預期 0）`)
 
     // 3) 格式化輸出範例
     const sample = await fetchNews({ interests: ['tech'], maxItems: 1 })
     if (sample.length) {
         const prompt = formatNewsForPrompt(sample)
-        console.log('\n✅ 格式化範例（前 200 字）:')
+        console.log('\n[OK] 格式化範例（前 200 字）:')
         console.log(prompt.slice(0, 200) + '...')
     }
 

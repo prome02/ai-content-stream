@@ -100,17 +100,17 @@ export default function Home() {
               <div className="text-xs text-gray-500 mb-2">開發者測試模式 (Emulator)</div>
               <button
                 onClick={async () => {
-                  console.log('🟡 開始 Firebase Emulator 快速測試登入...')
+                  console.log('[Dev] 開始 Firebase Emulator 快速測試登入...')
 
                   try {
                     // 直接使用 Firebase 的 Google 登入功能
                     // 在 Emulator 模式下，signInWithPopup 會模擬成功登入
-                    console.log('🔄 使用 Firebase Google 登入...')
+                    console.log('[Loading] 使用 Firebase Google 登入...')
                     await signInWithGoogle()
-                    console.log('✅ 已觸發 Firebase Google 登入')
+                    console.log('[OK] 已觸發 Firebase Google 登入')
 
                   } catch (error: any) {
-                    console.error('❌ Firebase Emulator 登入失敗:', error)
+                    console.error('[ERR] Firebase Emulator 登入失敗:', error)
 
                     // 檢查 Emulator 是否在運行
                     try {
@@ -120,7 +120,7 @@ export default function Home() {
                       })
 
                       if (emulatorCheck.ok) {
-                        console.log('✅ Firebase Auth Emulator 正在運行')
+                        console.log('[OK] Firebase Auth Emulator 正在運行')
                         alert(`Firebase Auth Emulator 登入失敗:\n${error.message}\n\n請確保:\n1. Firebase Emulator 正在運行 (firebase emulators:start)\n2. 瀏覽器已允許彈出視窗`)
                       } else {
                         alert(`Firebase Auth Emulator 未運行\n請執行: firebase emulators:start`)

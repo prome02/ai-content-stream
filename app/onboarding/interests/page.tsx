@@ -7,12 +7,12 @@ import { saveUserPreferences, getUserPreferences } from '@/lib/user-data'
 import { Check, ArrowRight, Sparkles } from 'lucide-react'
 
 const INTEREST_OPTIONS = [
-  { id: 'tech', label: '科技新知', icon: '💻', description: 'AI、軟體、網路趨勢' },
-  { id: 'business', label: '商業財經', icon: '📈', description: '投資、經濟、產業動態' },
-  { id: 'health', label: '健康生活', icon: '🏃', description: '養生、飲食、健身' },
-  { id: 'travel', label: '旅遊探索', icon: '✈️', description: '景點、旅行、文化' },
-  { id: 'sports', label: '運動體育', icon: '⚽', description: '賽事、球隊、運動員' },
-  { id: 'fashion', label: '時尚潮流', icon: '👗', description: '穿搭、美妝、品牌' },
+  { id: 'tech', label: '科技新知', icon: '[Tech]', description: 'AI、軟體、網路趨勢' },
+  { id: 'business', label: '商業財經', icon: '[Business]', description: '投資、經濟、產業動態' },
+  { id: 'health', label: '健康生活', icon: '[Health]', description: '養生、飲食、健身' },
+  { id: 'travel', label: '旅遊探索', icon: '[Travel]', description: '景點、旅行、文化' },
+  { id: 'sports', label: '運動體育', icon: '[Sports]', description: '賽事、球隊、運動員' },
+  { id: 'fashion', label: '時尚潮流', icon: '[Fashion]', description: '穿搭、美妝、品牌' },
 ]
 
 export default function InterestsPage() {
