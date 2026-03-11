@@ -32,6 +32,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.local.example
+
+# Business/private docs and design artifacts
+docs/
+designs/
 
 # vercel
 .vercel
@@ -108,6 +113,7 @@ nul
 # Agent development directories and files (transient state)
 .sisyphus/notepads/
 .sisyphus/*.txt
+.sisyphus/
 
 # ESLint cache
 .eslintcache
