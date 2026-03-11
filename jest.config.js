@@ -4,6 +4,15 @@ module.exports = {
     '<rootDir>/tests/**/*.test.ts',
     '<rootDir>/tests/**/*.test.tsx'
   ],
+  modulePathIgnorePatterns: [
+    '<rootDir>/.claude/',
+    '<rootDir>/.agent/',
+    '<rootDir>/.sisyphus/',
+    '<rootDir>/.gemini/',
+    '<rootDir>/.opencode/',
+    '<rootDir>/.roo/',
+    '<rootDir>/logs/'
+  ],
   transform: {
     '^.+\\.(ts|tsx)$': 'ts-jest'
   },
