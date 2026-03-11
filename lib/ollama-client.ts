@@ -54,7 +54,7 @@ class OllamaError extends Error {
 
 export class OllamaClient {
   private readonly config: Required<OllamaConfig>
-  private readonly controller: AbortSignal
+  private readonly signal: AbortSignal
   private readonly availableModels: string[]
 
   constructor(config: OllamaConfig = {}) {
@@ -78,7 +78,7 @@ export class OllamaClient {
 
     // Store available models
     this.availableModels = this.config.models
-    this.controller = AbortSignal.timeout(this.config.timeout)
+    this.signal = AbortSignal.timeout(this.config.timeout)
   }
 
   /**
@@ -201,7 +201,7 @@ export class OllamaClient {
 
       const response = await fetch(`${this.config.baseUrl}/api/tags`, {
         headers,
-        signal: this.controller.signal
+        signal: this.signal
       })
       
       if (!response.ok) {
@@ -252,7 +252,8 @@ export class OllamaClient {
    * 取消所有進行中的請求
    */
   cancel(): void {
-    this.controller.abort()
+    // No-op: this client uses a timeout-based AbortSignal.
+    // Callers can pass their own AbortSignal via options to cancel a request.
   }
 
   get isCloudMode(): boolean {
@@ -264,7 +265,7 @@ export class OllamaClient {
     options: { signal?: AbortSignal }
   ): Promise<OllamaResponse> {
     const { baseUrl, apiKey } = this.config
-    const signal = options.signal || this.controller.signal
+    const signal = options.signal || this.signal
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
