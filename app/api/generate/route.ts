@@ -56,6 +56,9 @@ console.log(`[Generate] Ollama mode: ${isOllamaCloud ? 'cloud' : 'local'}, baseU
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now()
+  // Store parsed body so the catch block can build fallback content without
+  // attempting to re-consume the request stream (which would throw).
+  let requestBody: GenerateRequest | null = null
 
   try {
     let body: GenerateRequest
@@ -67,6 +70,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
+    requestBody = body
     const { uid, count = 3, mode = 'default', locale = 'zh-TW', contentSettings, userFeedback: clientUserFeedback, interests: clientInterests = [] } = body
 
     // Validate request
@@ -540,8 +544,8 @@ export async function POST(req: NextRequest) {
 
     // 錯誤降級：返回模擬內容
     const fallbackContent = getFallbackContent(
-      (await req.json()).uid || 'unknown',
-      (await req.json()).count || 3
+      requestBody?.uid || 'unknown',
+      requestBody?.count || 3
     )
 
     return NextResponse.json({
