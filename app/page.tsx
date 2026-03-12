@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
 export default function Home() {
-  const { user, loading, signInWithGoogle, signInWithMock, fastLogin } = useAuth()
+  const { user, loading, signInWithGoogle, signInWithEmulator, signInWithMock, fastLogin } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
@@ -106,8 +106,8 @@ export default function Home() {
                     // 直接使用 Firebase 的 Google 登入功能
                     // 在 Emulator 模式下，signInWithPopup 會模擬成功登入
                     console.log('[Loading] 使用 Firebase Google 登入...')
-                    await signInWithGoogle()
-                    console.log('[OK] 已觸發 Firebase Google 登入')
+                    await signInWithEmulator()
+                    console.log('[OK] Emulator anonymous login success')
 
                   } catch (error: any) {
                     console.error('[ERR] Firebase Emulator 登入失敗:', error)

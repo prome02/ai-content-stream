@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getFirebaseAuth, getGoogleProvider, signInWithPopup, signOut } from '@/lib/real-firebase'
+import { getFirebaseAuth, getGoogleProvider, signInWithPopup, signInAnonymously, signOut } from '@/lib/real-firebase'
 
 interface User {
   uid: string
@@ -146,6 +146,28 @@ export function useAuth() {
     }
   }
 
+  const signInWithEmulator = async () => {
+    try {
+      setAuthState(prev => ({ ...prev, loading: true, error: null }))
+      console.log('[Auth] Starting emulator login (anonymous)')
+
+      const auth = getFirebaseAuth()
+      if (!auth) {
+        throw new Error('Firebase Auth not initialized')
+      }
+
+      await signInAnonymously(auth)
+      console.log('[Auth] Emulator login successful (anonymous)')
+    } catch (error: any) {
+      console.error('[Auth] Emulator login failed:', error)
+      setAuthState({
+        user: null,
+        loading: false,
+        error: error.message || 'Emulator login failed'
+      })
+    }
+  }
+
   const logout = async () => {
     try {
       console.log('[Auth] Starting Firebase logout...')
@@ -185,6 +207,7 @@ export function useAuth() {
     ...authState,
     signInWithGoogle,
     signInWithMock,
+    signInWithEmulator,
     logout,
     fastLogin
   }

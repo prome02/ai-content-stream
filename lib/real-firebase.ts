@@ -7,7 +7,7 @@
 // In Emulator mode, API key doesn't need to be real, but format must be correct
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, connectAuthEmulator, Auth } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInAnonymously, signOut, onAuthStateChanged, connectAuthEmulator, Auth } from 'firebase/auth'
 import { getFirestore, Firestore, initializeFirestore, connectFirestoreEmulator } from 'firebase/firestore'
 import { getAnalytics, isSupported, Analytics } from 'firebase/analytics'
 
@@ -208,6 +208,7 @@ export async function getFirebaseAnalytics(): Promise<Analytics | null> {
 // Export Firebase Auth functions
 export {
   signInWithPopup,
+  signInAnonymously,
   signOut,
   onAuthStateChanged
 }
