@@ -58,7 +58,15 @@ export async function POST(req: NextRequest) {
   const startTime = Date.now()
 
   try {
-    const body: GenerateRequest = await req.json()
+    let body: GenerateRequest
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json(
+        { success: false, error: 'INVALID_JSON', message: 'Invalid JSON request body' },
+        { status: 400 }
+      )
+    }
     const { uid, count = 3, mode = 'default', locale = 'zh-TW', contentSettings, userFeedback: clientUserFeedback, interests: clientInterests = [] } = body
 
     // Validate request
@@ -68,7 +76,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if using mock data (from environment variable)
-    const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK_DATA === 'true'
+    // Normalize to avoid surprises like "False", " true ", etc.
+    const USE_MOCK_DATA = String(process.env.NEXT_PUBLIC_USE_MOCK_DATA || '')
+      .trim()
+      .toLowerCase() === 'true'
 
     console.log(`[Generate] Request: uid=${uid}, count=${count}, mode=${mode}, useMock=${USE_MOCK_DATA}`)
 

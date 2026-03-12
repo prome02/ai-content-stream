@@ -168,6 +168,35 @@ service cloud.firestore {
     match /aipcs_interactions/{docId} {
       allow read, write: if request.auth != null;
     }
+
+    // aipcs_user_settings: per-user content settings (doc id = Firebase Auth UID)
+    match /aipcs_user_settings/{userId} {
+      allow read, write: if request.auth != null
+        && request.auth.uid != null
+        && request.auth.uid == userId;
+    }
+
+    // aipcs_feedback: user text feedback (random doc id, owner in `uid` field)
+    match /aipcs_feedback/{docId} {
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+
+      allow read: if request.auth != null
+        && resource.data.uid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
+    // aipcs_keyword_clicks: keyword click tracking (random doc id, owner in `uid` field)
+    match /aipcs_keyword_clicks/{docId} {
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid;
+
+      allow read: if request.auth != null
+        && resource.data.uid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
     
     // ========================================
     // 內容集合：使用者生成的內容
