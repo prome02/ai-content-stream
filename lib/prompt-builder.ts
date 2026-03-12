@@ -489,7 +489,7 @@ ${modules.opening.prompt}
 
 ${modules.format.prompt}
 
-${context.contentSettings ? '' : modules.depth.prompt}
+${modules.depth.prompt}
 ${settingsInstruction}
 ${antiClicheSection}
 ${challengeSection}

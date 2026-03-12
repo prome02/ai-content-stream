@@ -22,6 +22,25 @@ import type {
 const usedNewsLinksMap = new Map<string, string[]>()
 const MAX_USED_NEWS_PER_USER = 20
 
+function getMinContentChars(settings: GenerateRequest['contentSettings']): number {
+  // Heuristic guardrail for zh-TW: treat "chars" as "字".
+  // This is intentionally lower than the prompt targets to avoid excessive fallbacks.
+  const depth = settings?.depth
+  switch (depth) {
+    case 'brief':
+      return 120
+    case 'moderate':
+      return 260
+    case 'deep':
+      return 520
+    case 'comprehensive':
+      return 800
+    default:
+      // Default matches "standard" depth module (400-600 target)
+      return 260
+  }
+}
+
 function getUsedNewsLinks(uid: string): string[] {
   return usedNewsLinksMap.get(uid) || []
 }
@@ -409,6 +428,19 @@ export async function POST(req: NextRequest) {
 
         // Parse the response
         const parsedContent = promptBuilder.parseResponse(ollamaResponse.message.content)
+
+        // Guardrail: if LLM returns something implausibly short for the chosen depth,
+        // treat it as a generation failure so we fall back to mock/fallback content.
+        const minChars = getMinContentChars(contentSettings)
+        const tooShortItems = parsedContent.filter((item: any) => {
+          const text = typeof item?.content === 'string' ? item.content.trim() : ''
+          return text.length > 0 && text.length < minChars
+        })
+        if (tooShortItems.length > 0) {
+          const sample = String(tooShortItems[0]?.content || '').trim().slice(0, 80)
+          console.warn(`[Generate] LLM content too short (<${minChars} chars), falling back. Sample="${sample}"`)
+          throw new Error('LLM returned content too short')
+        }
 
         // Convert to ContentItem format
         generatedContent = parsedContent.map((item: any, index: number) => ({
