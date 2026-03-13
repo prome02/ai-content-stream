@@ -337,6 +337,11 @@ export async function POST(req: NextRequest) {
           userId: uid,
           mode: hasModularFunction ? 'modular' : 'legacy',
           promptData: promptData,
+          // The promptData.model is the builder's suggestion; server may override.
+          serverDefaults: {
+            preferredModel: process.env.OLLAMA_PREFERRED_MODEL || (process.env.OLLAMA_MODEL || 'minimax-m2.5'),
+            timeoutMs: Number(process.env.OLLAMA_TIMEOUT_MS || '') || 120000,
+          },
           newsCount: news.length,
           interests: clientInterests
         }
@@ -449,7 +454,7 @@ export async function POST(req: NextRequest) {
               // Guardrail: cap output length to avoid long generations/timeouts.
               num_predict: (promptData.options && typeof promptData.options.num_predict === 'number')
                 ? promptData.options.num_predict
-                : 900
+                : 700
             }
           })
 

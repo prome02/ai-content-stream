@@ -85,10 +85,11 @@ export default function FeedPage() {
 
   // Auto infinite scroll
   const handleAutoLoad = useCallback(async () => {
-    if (!user || isGenerating || !contentSettings.autoInfiniteScroll) return
+    // If generation is failing, pause auto-load to avoid repeated retries/timeouts.
+    if (!user || isGenerating || !contentSettings.autoInfiniteScroll || !!error) return
     console.log('[Feed] Auto-loading more content via infinite scroll')
     generate(user.uid, 5, userInterests, contentSettings)
-  }, [user, isGenerating, userInterests, contentSettings, generate])
+  }, [user, isGenerating, userInterests, contentSettings, error, generate])
 
   const { sentinelRef } = useInfiniteScroll(handleAutoLoad, {
     enabled: contentSettings.autoInfiniteScroll && feedItems.length > 0 && !isGenerating,
