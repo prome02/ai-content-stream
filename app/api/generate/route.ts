@@ -425,10 +425,20 @@ export async function POST(req: NextRequest) {
         // Use getModel() for random/preferred model selection
         const selectedModel = ollamaClient.getModel()
         
-        const ollamaResponse = await ollamaClient.chat(
-          {
+        const targetCount = Math.max(1, Math.min(Number(count) || 1, 10))
+        const minChars = getMinContentChars(contentSettings)
+        const results: ContentItem[] = []
+
+        for (let i = 0; i < targetCount; i++) {
+          // Keep the per-item instruction very small (token-friendly).
+          const perItemHint = `請產出第 ${i + 1}/${targetCount} 則內容，避免與前面重複。只輸出 1 個 JSON 物件。`
+          const messages = Array.isArray(promptData.messages)
+            ? [...promptData.messages, { role: 'user', content: perItemHint }]
+            : promptData.messages
+
+          const ollamaResponse = await ollamaClient.chat({
             model: selectedModel,
-            messages: promptData.messages,
+            messages,
             stream: false,
             options: {
               ...(promptData.options || {}),
@@ -437,68 +447,36 @@ export async function POST(req: NextRequest) {
                 ? promptData.options.num_predict
                 : 900
             }
-          }
-        )
+          })
 
-        console.log(`[Generate] Ollama response received, model used: ${selectedModel}`)
+          console.log(`[Generate] Ollama response received (${i + 1}/${targetCount}), model used: ${selectedModel}`)
 
-        // Parse the response
-        const parsedContent = promptBuilder.parseResponse(ollamaResponse.message.content, { allowFallback: allowFallback })
-
-        // Guardrail: if LLM returns something implausibly short for the chosen depth,
-        // treat it as a generation failure so we fall back to mock/fallback content.
-        const minChars = getMinContentChars(contentSettings)
-        const tooShortItems = parsedContent.filter((item: any) => {
+          const parsed = promptBuilder.parseResponse(ollamaResponse.message.content, { allowFallback: allowFallback })
+          const item = parsed?.[0]
           const text = typeof item?.content === 'string' ? item.content.trim() : ''
-          return text.length > 0 && text.length < minChars
-        })
-        if (tooShortItems.length > 0) {
-          const sample = String(tooShortItems[0]?.content || '').trim().slice(0, 80)
-          console.warn(`[Generate] LLM content too short (<${minChars} chars), falling back. Sample="${sample}"`)
-          throw new Error('LLM returned content too short')
-        }
-
-        // Convert to ContentItem format
-        generatedContent = parsedContent.map((item: any, index: number) => ({
-          id: `ollama_${Date.now()}_${index}`,
-          content: item.content || '',
-          hashtags: item.hashtags || [],
-          topics: item.topics || [],
-          likes: 0,
-          dislikes: 0,
-          qualityScore: 80 + Math.floor(Math.random() * 20),
-          generatedAt: new Date(),
-          style: item.style || 'casual',
-          usedBy: [],
-          reuseCount: 0
-        }))
-
-        // Ensure we have enough content
-        if (generatedContent.length < count - cachedContent.length) {
-          if (!allowFallback) {
-            throw new Error('LLM returned fewer items than requested')
+          if (!text) {
+            throw new Error('LLM returned empty content')
+          }
+          if (text.length < minChars) {
+            throw new Error('LLM returned content too short')
           }
 
-          console.log('[Generate] Ollama returned fewer items than requested, padding with mock')
-          const needed = count - cachedContent.length - generatedContent.length
-          const mockPadding: ContentItem[] = MOCK_CONTENT_ITEMS
-            .sort(() => Math.random() - 0.5)
-            .slice(0, needed)
-            .map((item, index) => ({
-              id: `mock_pad_${Date.now()}_${index}`,
-              content: item.content,
-              hashtags: item.hashtags,
-              topics: item.topics,
-              likes: 0,
-              dislikes: 0,
-              qualityScore: 70 + Math.floor(Math.random() * 20),
-              generatedAt: new Date(),
-              style: 'casual' as const,
-              usedBy: [],
-              reuseCount: 0
-            }))
-          generatedContent = [...generatedContent, ...mockPadding]
+          results.push({
+            id: `ollama_${Date.now()}_${i}`,
+            content: text,
+            hashtags: item.hashtags || [],
+            topics: item.topics || [],
+            likes: 0,
+            dislikes: 0,
+            qualityScore: 80 + Math.floor(Math.random() * 20),
+            generatedAt: new Date(),
+            style: item.style || 'casual',
+            usedBy: [],
+            reuseCount: 0
+          })
         }
+
+        generatedContent = results
 
         generationTime = Date.now() - startTime
         source = 'ollama'
