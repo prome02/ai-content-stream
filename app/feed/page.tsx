@@ -146,6 +146,10 @@ export default function FeedPage() {
     url.searchParams.delete('autoGenerate')
     window.history.replaceState({}, '', url.pathname)
 
+    // Prevent infinite retries: if generation fails (no items saved), we still only
+    // want to auto-trigger once. User can retry manually from the UI.
+    setShouldAutoGenerate(false)
+
     console.log('[Feed] Auto-generating content for new user')
     generate(user.uid, 5, userInterests, contentSettings)
   }, [user, shouldAutoGenerate, isGenerating, feedItems.length, userInterests, contentSettings, generate])

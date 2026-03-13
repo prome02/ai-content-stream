@@ -98,6 +98,9 @@ docs/TESTING-GUIDE.md
 # Logs directory (AI prompt history and JSON logs)
 logs/
 
+# Local run logs (dev only)
+.runlogs/
+
 # Cache directories
 .cache/
 
