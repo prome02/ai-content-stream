@@ -118,6 +118,25 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
+#### Firebase Emulator (Recommended for Local Development)
+
+If you don't want to connect to a real Firebase project while developing, you can run the Firebase Emulator Suite:
+
+```bash
+firebase emulators:start
+```
+
+This repo is configured for common emulators:
+- Auth emulator (`9099`)
+- Firestore emulator (`8080`)
+- Emulator UI (`4000`)
+
+Enable emulator mode via environment variable:
+
+```env
+NEXT_PUBLIC_USE_FIREBASE_EMULATOR=true
+```
+
 #### 4. (Optional) Use Mock Data for Development
 
 If you don't have Ollama API access, you can use mock data:
