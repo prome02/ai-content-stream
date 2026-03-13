@@ -29,29 +29,20 @@ export class ContentCacheService {
     console.log('[ContentCacheService] Fetching content:', userId, interests)
 
     // 1. Check Firestore cache
-    const cachedContents = await firestoreCache.get(userId)
-    if (cachedContents && cachedContents.length >= count) {
+    const cachedContents = (await firestoreCache.get(userId)) || []
+    if (cachedContents.length >= count) {
       console.log('[ContentCacheService] Returning from Firestore cache')
       return cachedContents.slice(0, count)
     }
 
-    // 2. Filter mock content by interests
-    const filteredByInterest = this.filterByInterests(
-      this.mockContent,
-      interests,
-      userId
-    )
-
-    if (filteredByInterest.length >= count) {
-      console.log('[ContentCacheService] Filtering mock data by interests')
-      const result = filteredByInterest.slice(0, count)
-      await this.saveGeneratedContent(userId, result)
-      return result
+    // Default policy: do not generate or return mock/fake content here.
+    // If cache is insufficient, return what we have and let the server-side
+    // generator decide what to do (and fail loudly when configured to do so).
+    if (cachedContents.length > 0) {
+      return cachedContents
     }
 
-    // 3. Fallback: return random mock content
-    console.log('[ContentCacheService] Using fallback content')
-    return this.getFallbackContent(userId, count)
+    return []
   }
 
   /**

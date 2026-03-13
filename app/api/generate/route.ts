@@ -41,6 +41,12 @@ function getMinContentChars(settings: GenerateRequest['contentSettings']): numbe
   }
 }
 
+function isTruthyEnv(value: unknown): boolean {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase() === 'true'
+}
+
 function getUsedNewsLinks(uid: string): string[] {
   return usedNewsLinksMap.get(uid) || []
 }
@@ -78,6 +84,8 @@ export async function POST(req: NextRequest) {
   // Store parsed body so the catch block can build fallback content without
   // attempting to re-consume the request stream (which would throw).
   let requestBody: GenerateRequest | null = null
+  let allowFallback = false
+  let useMockData = false
 
   try {
     let body: GenerateRequest
@@ -98,13 +106,11 @@ export async function POST(req: NextRequest) {
       return validationError
     }
 
-    // Check if using mock data (from environment variable)
-    // Normalize to avoid surprises like "False", " true ", etc.
-    const USE_MOCK_DATA = String(process.env.NEXT_PUBLIC_USE_MOCK_DATA || '')
-      .trim()
-      .toLowerCase() === 'true'
+    // Default policy: no mock, no fallback. Enable explicitly via env vars.
+    allowFallback = isTruthyEnv(process.env.ALLOW_FALLBACK)
+    useMockData = isTruthyEnv(process.env.ALLOW_MOCK_DATA ?? process.env.NEXT_PUBLIC_USE_MOCK_DATA)
 
-    console.log(`[Generate] Request: uid=${uid}, count=${count}, mode=${mode}, useMock=${USE_MOCK_DATA}`)
+    console.log(`[Generate] Request: uid=${uid}, count=${count}, mode=${mode}, useMock=${useMockData}, allowFallback=${allowFallback}`)
 
     // 1. Rate limiting check
     const rateLimitResult = await rateLimiter.check(uid)
@@ -112,7 +118,7 @@ export async function POST(req: NextRequest) {
       console.log(`[Generate] Rate limit exceeded: ${uid}`)
 
       // 使用降級內容
-      const fallbackContent = getFallbackContent(uid, count)
+      const fallbackContent = allowFallback ? getFallbackContent(uid, count) : []
 
       return NextResponse.json(
         {
@@ -120,8 +126,8 @@ export async function POST(req: NextRequest) {
           error: 'RATE_LIMIT_EXCEEDED',
           message: '每小時生成限制已達上限，請稍後再試',
           contents: fallbackContent,
-          source: 'fallback',
-          useMockData: USE_MOCK_DATA,
+          source: allowFallback ? 'fallback' : undefined,
+          useMockData,
           rateLimit: {
             remaining: 0,
             resetAt: rateLimitResult.resetAt.toISOString()
@@ -347,7 +353,7 @@ export async function POST(req: NextRequest) {
     let contentGenerationEventParams: any = null
 
     try {
-      if (USE_MOCK_DATA) {
+      if (useMockData) {
         // Use mock data for development
         console.log('[Generate] Using mock data')
         const generateDelay = Math.random() * 1500 + 800
@@ -427,7 +433,7 @@ export async function POST(req: NextRequest) {
         console.log(`[Generate] Ollama response received, model used: ${selectedModel}`)
 
         // Parse the response
-        const parsedContent = promptBuilder.parseResponse(ollamaResponse.message.content)
+        const parsedContent = promptBuilder.parseResponse(ollamaResponse.message.content, { allowFallback: allowFallback })
 
         // Guardrail: if LLM returns something implausibly short for the chosen depth,
         // treat it as a generation failure so we fall back to mock/fallback content.
@@ -459,6 +465,10 @@ export async function POST(req: NextRequest) {
 
         // Ensure we have enough content
         if (generatedContent.length < count - cachedContent.length) {
+          if (!allowFallback) {
+            throw new Error('LLM returned fewer items than requested')
+          }
+
           console.log('[Generate] Ollama returned fewer items than requested, padding with mock')
           const needed = count - cachedContent.length - generatedContent.length
           const mockPadding: ContentItem[] = MOCK_CONTENT_ITEMS
@@ -499,6 +509,10 @@ export async function POST(req: NextRequest) {
 
     } catch (error) {
       console.error('[Generate] Ollama generation failed:', error)
+
+      if (!allowFallback) {
+        throw error
+      }
 
       // Fallback to mock content
       generatedContent = MOCK_CONTENT_ITEMS
@@ -573,6 +587,17 @@ export async function POST(req: NextRequest) {
     console.error('[Generate] API error:', error)
     const errorName = error instanceof Error ? error.name : 'UNKNOWN_ERROR'
     const errorMessage = error instanceof Error ? error.message : '未知錯誤'
+
+    if (!allowFallback) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: errorName,
+          message: `Generation failed: ${errorMessage}`
+        },
+        { status: 502 }
+      )
+    }
 
     // 錯誤降級：返回模擬內容
     const fallbackContent = getFallbackContent(

@@ -12,7 +12,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { saveContent, subscribeToUserFeed } from '@/lib/content-service'
 import { getBrowserLocale } from '@/lib/locale-utils'
-import { MOCK_CONTENT_ITEMS } from '@/lib/mock-data'
 import type { ContentItem, ContentSettings } from '@/types'
 
 interface GenerationState {
@@ -20,7 +19,7 @@ interface GenerationState {
   currentIndex: number
   totalCount: number
   error: string | null
-  source: 'ollama' | 'mock' | 'fallback' | null
+  source: 'ollama' | 'fallback' | null
 }
 
 interface UseContentGenerationOptions {
@@ -123,7 +122,6 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
       }
 
       const source: 'ollama' | 'mock' | 'fallback' = data.source === 'ollama' ? 'ollama'
-        : data.source === 'mock' ? 'mock'
         : 'fallback'
 
       console.log(`[useContentGeneration] Received ${data.contents.length} items, source=${source}`)
@@ -162,8 +160,6 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
       console.error('[useContentGeneration] Error:', errorMessage)
 
       setState(prev => ({ ...prev, isGenerating: false, error: errorMessage }))
-
-      await generateMockContent(userId, count)
       options.onError?.(errorMessage)
     }
   }, [subscribeToFeed, options])
@@ -174,7 +170,7 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
   const persistContents = async (
     userId: string,
     contents: ContentItem[],
-    source: 'ollama' | 'mock' | 'fallback'
+    source: 'ollama' | 'fallback'
   ) => {
     for (const item of contents) {
       if (abortRef.current) break
@@ -190,42 +186,6 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
         reuseCount: 0
       })
     }
-  }
-
-  /**
-   * Generate mock content (local fallback when API is unreachable)
-   */
-  const generateMockContent = async (userId: string, count: number) => {
-    console.log('[useContentGeneration] Using local mock content')
-
-    const mockItems = MOCK_CONTENT_ITEMS
-      .sort(() => Math.random() - 0.5)
-      .slice(0, count)
-
-    for (let i = 0; i < mockItems.length; i++) {
-      if (abortRef.current) break
-
-      setState(prev => ({ ...prev, currentIndex: i, source: 'mock' }))
-
-      await new Promise(resolve => setTimeout(resolve, 300))
-
-      await saveContent(userId, {
-        content: mockItems[i].content,
-        hashtags: mockItems[i].hashtags,
-        topics: mockItems[i].topics,
-        style: 'casual',
-        qualityScore: 75 + Math.floor(Math.random() * 25),
-        likes: 0,
-        dislikes: 0,
-        usedBy: [],
-        reuseCount: 0
-      })
-
-      options.onItemGenerated?.(mockItems[i] as ContentItem, i)
-    }
-
-    setState(prev => ({ ...prev, isGenerating: false }))
-    options.onComplete?.(mockItems.length)
   }
 
   /**

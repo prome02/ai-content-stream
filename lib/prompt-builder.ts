@@ -278,7 +278,8 @@ ${modeInstruction}
    * 只支援新格式（物件）：{content, keywords, topics, style}
    * 增強容錯：處理各種 LLM 輸出格式問題
    */
-  parseResponse(aiResponse: string): any[] {
+  parseResponse(aiResponse: string, options?: { allowFallback?: boolean }): any[] {
+    const allowFallback = options?.allowFallback === true
     try {
       let cleanedResponse = aiResponse.trim()
 
@@ -379,13 +380,17 @@ ${modeInstruction}
       if (jsonMatch) {
         try {
           console.log('[parseResponse] Attempting secondary parse with regex match...')
-          return this.parseResponse(jsonMatch[0])
+          return this.parseResponse(jsonMatch[0], { allowFallback })
         } catch (e) {
           console.error('[parseResponse] Secondary parse failed:', e)
         }
       }
 
       // 緊急備援：返回預設內容
+      if (!allowFallback) {
+        throw new Error('Failed to parse AI response')
+      }
+
       console.warn('[parseResponse] Using fallback content')
       return [{
         content: '今天也是學習創造美好內容的一天！持續探索，保持好奇。',

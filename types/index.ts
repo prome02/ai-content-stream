@@ -95,8 +95,10 @@ export interface GenerateRequest {
 
 export interface GenerateResponse {
   success: boolean
-  contents: ContentItem[]
-  source: 'ollama' | 'cache' | 'fallback' | 'mock'
+  contents?: ContentItem[]
+  source?: 'ollama' | 'cache' | 'fallback' | 'mock'
+  error?: string
+  message?: string
   cachedCount?: number
   generationTime?: number
   rateLimit?: {
