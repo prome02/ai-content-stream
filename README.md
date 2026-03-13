@@ -161,6 +161,12 @@ LLM calls are made server-side through `POST /api/generate`, so API keys must be
 
 If you want to use another provider (OpenAI/Anthropic/etc.), replace the implementation behind `/app/api/generate/route.ts` (currently `lib/ollama-client.ts`).
 
+### Firebase Project ID (Open Source Safety)
+
+This repo intentionally uses a placeholder Firebase project ID (`demo-project`) in `.firebaserc` to reduce the risk of accidental deploys to a real project.
+
+If you plan to deploy, update `.firebaserc` (or use `firebase use --add`) to point to your own Firebase project.
+
 ### Scripts
 
 ```bash
