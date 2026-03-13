@@ -86,56 +86,50 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
     try {
       const locale = getBrowserLocale()
 
-      console.log(`[useContentGeneration] Calling /api/generate: count=${count}, locale=${locale}`)
+      console.log(`[useContentGeneration] Generating progressively: count=${count}, locale=${locale}`)
 
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uid: userId,
-          count,
-          mode: 'default',
-          locale,
-          interests,
-          contentSettings,
-          userFeedback
-        })
-      })
+      // Progressive generation: request 1 item at a time so the UI updates immediately.
+      // (Server-side /api/generate may still generate multiple items, but we don't wait
+      // for a full batch here.)
+      const targetCount = Math.max(1, Math.min(Number(count) || 1, 10))
+      let completed = 0
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        // Rate limit: use fallback contents returned by server
-        if (response.status === 429 && errorData.contents?.length > 0) {
-          console.warn('[useContentGeneration] Rate limit hit, using server fallback content')
-          await persistContents(userId, errorData.contents, 'fallback')
-          setState(prev => ({ ...prev, isGenerating: false, source: 'fallback' }))
-          options.onComplete?.(errorData.contents.length)
-          return
-        }
-        throw new Error(errorData.message || `API error: ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (!data.success || !data.contents?.length) {
-        throw new Error('No content returned from API')
-      }
-
-      const source: 'ollama' | 'mock' | 'fallback' = data.source === 'ollama' ? 'ollama'
-        : 'fallback'
-
-      console.log(`[useContentGeneration] Received ${data.contents.length} items, source=${source}`)
-
-      // Save each item to Firestore one by one to trigger onSnapshot progressively
-      for (let i = 0; i < data.contents.length; i++) {
+      for (let i = 0; i < targetCount; i++) {
         if (abortRef.current) {
           console.log('[useContentGeneration] Generation aborted')
           break
         }
 
-        setState(prev => ({ ...prev, currentIndex: i, source }))
+        setState(prev => ({ ...prev, currentIndex: i, source: prev.source }))
 
-        const item = data.contents[i]
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            uid: userId,
+            count: 1,
+            mode: 'default',
+            locale,
+            interests,
+            contentSettings,
+            userFeedback
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.message || `API error: ${response.status}`)
+        }
+
+        const data = await response.json()
+        if (!data.success || !data.contents?.length) {
+          throw new Error('No content returned from API')
+        }
+
+        const source: 'ollama' | 'fallback' = data.source === 'ollama' ? 'ollama' : 'fallback'
+        setState(prev => ({ ...prev, source }))
+
+        const item = data.contents[0]
         await saveContent(userId, {
           content: item.content || '',
           hashtags: item.hashtags || [],
@@ -148,12 +142,13 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
           reuseCount: 0
         })
 
+        completed++
         options.onItemGenerated?.(item as ContentItem, i)
-        console.log(`[useContentGeneration] Item ${i + 1}/${data.contents.length} saved to Firestore`)
+        console.log(`[useContentGeneration] Item ${i + 1}/${targetCount} saved to Firestore`)
       }
 
       setState(prev => ({ ...prev, isGenerating: false }))
-      options.onComplete?.(data.contents.length)
+      options.onComplete?.(completed)
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Generation failed'
