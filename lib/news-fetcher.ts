@@ -153,14 +153,20 @@ export function formatNewsForPrompt(news: NewsItem[]): string {
     return '【無相關新聞素材】'
   }
 
+  // Keep prompts compact: URLs and long descriptions are token-expensive and
+  // frequently cause context overflows.
+  const MAX_TITLE_CHARS = 120
+  const MAX_DESC_CHARS = 180
+
   return news.map((item, index) => {
     const dateStr = formatRelativeTime(item.pubDate)
+    const title = (item.title || '').slice(0, MAX_TITLE_CHARS)
+    const desc = (item.description || '無摘要').slice(0, MAX_DESC_CHARS)
     return `【新聞素材 ${index + 1}】
-標題：${item.title}
-摘要：${item.description || '無摘要'}
+標題：${title}
+摘要：${desc}
 來源：${item.source}
 時間：${dateStr}
-連結：${item.link}
 `
   }).join('\n')
 }
@@ -190,5 +196,5 @@ export function extractKeywordsFromNews(news: NewsItem[]): string[] {
     words.forEach(word => keywords.add(word))
   })
 
-  return Array.from(keywords).slice(0, 10)
+  return Array.from(keywords).slice(0, 6)
 }

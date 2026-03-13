@@ -67,13 +67,21 @@ const ollamaBaseUrl = isOllamaCloud
   ? 'https://ollama.com'
   : (process.env.OLLAMA_BASE_URL || 'http://localhost:11434')
 
+const DEFAULT_OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'minimax-m2.5'
+const OLLAMA_MODELS = (process.env.OLLAMA_MODELS
+  ? process.env.OLLAMA_MODELS.split(',')
+  : [DEFAULT_OLLAMA_MODEL]
+).map(s => s.trim()).filter(Boolean)
+
 const ollamaClient = new OllamaClient({
   baseUrl: ollamaBaseUrl,
   apiKey: ollamaApiKey,
-  defaultModel: process.env.OLLAMA_MODEL || 'minimax-m2.5',
-  models: (process.env.OLLAMA_MODELS || 'minimax-m2.5,qwen3.5:397b,gemma3:27b').split(','),
-  timeout: 90000, // 90 seconds for cloud LLM generation
-  maxRetries: 2
+  // Avoid surprising random selection (and accidentally picking very slow/huge models).
+  defaultModel: DEFAULT_OLLAMA_MODEL,
+  models: OLLAMA_MODELS,
+  preferredModel: process.env.OLLAMA_PREFERRED_MODEL || DEFAULT_OLLAMA_MODEL,
+  timeout: Number(process.env.OLLAMA_TIMEOUT_MS || '') || 120000, // 120s default
+  maxRetries: 1
 })
 
 console.log(`[Generate] Ollama mode: ${isOllamaCloud ? 'cloud' : 'local'}, baseUrl: ${ollamaBaseUrl}`)
@@ -178,7 +186,8 @@ export async function POST(req: NextRequest) {
     const interests = clientInterests as InterestCategory[]
     const news = await fetchNews({
       interests,
-      maxItems: 5,
+      // Keep prompts compact to avoid context overflows and slow generations.
+      maxItems: 3,
       locale,
       excludeLinks: getUsedNewsLinks(uid)
     })
@@ -421,7 +430,13 @@ export async function POST(req: NextRequest) {
             model: selectedModel,
             messages: promptData.messages,
             stream: false,
-            options: promptData.options || {}
+            options: {
+              ...(promptData.options || {}),
+              // Guardrail: cap output length to avoid long generations/timeouts.
+              num_predict: (promptData.options && typeof promptData.options.num_predict === 'number')
+                ? promptData.options.num_predict
+                : 900
+            }
           }
         )
 

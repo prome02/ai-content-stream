@@ -109,7 +109,7 @@ describe('news-fetcher', () => {
     errSpy.mockRestore()
   })
 
-  test('formatNewsForPrompt includes title and link for non-empty news', () => {
+  test('formatNewsForPrompt includes title (link may be omitted to keep prompts compact)', () => {
     const news = [{
       title: 'OpenAI releases something',
       description: 'A short description',
@@ -120,10 +120,10 @@ describe('news-fetcher', () => {
 
     const prompt = formatNewsForPrompt(news as any)
     expect(prompt).toContain(news[0].title)
-    expect(prompt).toContain(news[0].link)
+    expect(prompt).not.toContain(news[0].link)
   })
 
-  test('extractKeywordsFromNews returns up to 10 keywords', () => {
+  test('extractKeywordsFromNews returns up to 6 keywords', () => {
     const news = [
       { title: 'OpenAI releases new model', description: '', link: 'https://a', pubDate: new Date(), source: 'Example' },
       { title: 'Business growth and market trends', description: '', link: 'https://b', pubDate: new Date(), source: 'Example' },
@@ -131,7 +131,7 @@ describe('news-fetcher', () => {
 
     const keywords = extractKeywordsFromNews(news as any)
     expect(Array.isArray(keywords)).toBe(true)
-    expect(keywords.length).toBeLessThanOrEqual(10)
+    expect(keywords.length).toBeLessThanOrEqual(6)
     expect(keywords.join(' ')).toMatch(/OpenAI|releases|Business|growth|market|trends/)
   })
 })
