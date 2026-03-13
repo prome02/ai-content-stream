@@ -150,6 +150,17 @@ User signs in → Selects interests → AI generates content
               Personalization improves over time
 ```
 
+### LLM Provider (Deployment Notes)
+
+This project currently supports **Ollama only** as the LLM provider:
+
+- **Ollama Cloud** (recommended): set `OLLAMA_API_KEY` and the server will call `https://ollama.com`.
+- **Local Ollama**: do NOT set `OLLAMA_API_KEY`. The server will call `OLLAMA_BASE_URL` (default: `http://localhost:11434`).
+
+LLM calls are made server-side through `POST /api/generate`, so API keys must be stored as **server secrets** (for production, use your hosting platform secret manager). Do NOT put secrets under `NEXT_PUBLIC_*`.
+
+If you want to use another provider (OpenAI/Anthropic/etc.), replace the implementation behind `/app/api/generate/route.ts` (currently `lib/ollama-client.ts`).
+
 ### Scripts
 
 ```bash
