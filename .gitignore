@@ -34,6 +34,10 @@ yarn-error.log*
 .env*
 !.env.local.example
 
+# Firebase project selection (keep local, commit example only)
+.firebaserc
+!.firebaserc.example
+
 # Business/private docs and design artifacts
 docs/
 designs/

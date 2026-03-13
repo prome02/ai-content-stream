@@ -16,7 +16,7 @@ npm run start    # Start production server
 
 ## Environment Configuration
 
-See `docs/ENVIRONMENT_SETUP.md` for complete setup guide. Key environment variables:
+See `.env.local.example` for a safe-to-commit setup template. Key environment variables:
 
 - `NEXT_PUBLIC_USE_MOCK_DATA`: `true` for mock data, `false` for real LLM
 - `NEXT_PUBLIC_USE_FIREBASE_EMULATOR`: `true` for Firebase Emulator
@@ -76,7 +76,7 @@ types/
 1. User authenticates via Google Sign-In
 2. User selects interests on onboarding
 3. User configures content preferences via Settings drawer (tone, style, depth, length, topic, freshness)
-4. Feed generates content via browser-side Ollama calls with personalized prompt parameters
+4. Feed requests content from server endpoint `POST /api/generate` (server-side LLM call)
 5. User interactions (like/dislike/dwell time) update quality scores
 6. Personalization improves based on accumulated behavior data
 
@@ -93,8 +93,8 @@ All collections use `aipcs_` prefix:
 The `/api/generate` endpoint supports multiple sources:
 - `ollama`: Real LLM generation
 - `cache`: Previously generated content
-- `mock`: Development mock data
-- `fallback`: Degraded mode when LLM fails
+- `mock`: Development mock data (optional; controlled by env flags)
+- `fallback`: Degraded mode when LLM fails (optional; controlled by env flags)
 
 ### Rate Limiting
 
