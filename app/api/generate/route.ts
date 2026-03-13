@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { RateLimiter } from '@/services/rate-limiter'
-import ContentCache from '@/services/content-cache.service'
 import { PromptBuilder } from '@/lib/prompt-builder'
 import { MOCK_CONTENT_ITEMS } from '@/lib/mock-data'
 import { OllamaClient } from '@/lib/ollama-client'
@@ -140,11 +139,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. 檢查快取
-    const cachedContent = await ContentCache.getContentForUser(
-      uid,
-      count,
-      clientInterests
-    )
+    const cachedContent: ContentItem[] = []
 
     if (cachedContent.length >= count) {
       console.log(`[Generate] Cache hit, returning ${cachedContent.length} items`)
@@ -538,9 +533,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. 儲存新內容到快取 + 記算使用者權重
-    for (const content of generatedContent) {
-      await ContentCache.saveGeneratedContent(uid, [content])
-    }
+    // No server-side persistence: the client saves returned items to Firestore.
 
     // 5. 記錄內容生成分析事件
     try {
