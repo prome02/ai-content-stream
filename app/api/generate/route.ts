@@ -184,17 +184,21 @@ export async function POST(req: NextRequest) {
 
     // 抓取相關新聞（排除已用過的連結）
     const interests = clientInterests as InterestCategory[]
-    const news = await fetchNews({
+    const newsCandidates = await fetchNews({
       interests,
-      // Keep prompts compact to avoid context overflows and slow generations.
-      maxItems: 3,
+      // Fetch a few candidates, but only use ONE item per generated post.
+      // This enforces "one source => one post" and reduces prompt size.
+      maxItems: 5,
       locale,
       excludeLinks: getUsedNewsLinks(uid)
     })
 
-    // 追蹤本次使用的新聞連結
+    // Pick exactly one news item per post to avoid reusing the same source across posts.
+    const news = newsCandidates.length > 0 ? [newsCandidates[0]] : []
+
+    // Track only the one used source link
     if (news.length > 0) {
-      trackUsedNewsLinks(uid, news.map(n => n.link))
+      trackUsedNewsLinks(uid, [news[0].link])
     }
 
     console.log(`[Generate] Fetched ${news.length} news items`)
