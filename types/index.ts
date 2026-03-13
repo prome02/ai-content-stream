@@ -168,10 +168,10 @@ export const DEPTH_OPTIONS: Record<DepthType, { label: string; description: stri
 }
 
 export const LENGTH_OPTIONS: Record<LengthType, { label: string; description: string }> = {
-  short: { label: '短篇', description: '2-3 分鐘閱讀' },
-  medium: { label: '中篇', description: '5 分鐘閱讀' },
-  long: { label: '長篇', description: '8 分鐘閱讀' },
-  detailed: { label: '詳盡', description: '10 分鐘以上' },
+  short: { label: '短篇', description: '200 字以內' },
+  medium: { label: '中篇', description: '400-600 字' },
+  long: { label: '長篇', description: '800-1200 字' },
+  detailed: { label: '詳盡', description: '1200 字以上' },
 }
 
 export const TOPIC_OPTIONS: Record<TopicType, { label: string; description: string }> = {

@@ -24,20 +24,53 @@ const MAX_USED_NEWS_PER_USER = 20
 function getMinContentChars(settings: GenerateRequest['contentSettings']): number {
   // Heuristic guardrail for zh-TW: treat "chars" as "字".
   // This is intentionally lower than the prompt targets to avoid excessive fallbacks.
-  const depth = settings?.depth
-  switch (depth) {
-    case 'brief':
+  const length = settings?.length
+  switch (length) {
+    case 'short':
       return 120
-    case 'moderate':
+    case 'medium':
       return 260
-    case 'deep':
+    case 'long':
       return 520
-    case 'comprehensive':
+    case 'detailed':
       return 800
     default:
-      // Default matches "standard" depth module (400-600 target)
+      // Default matches medium-ish target
       return 260
   }
+}
+
+function getMaxContentChars(settings: GenerateRequest['contentSettings']): number | null {
+  // Soft caps to keep UI snappy; short is strict (user expectation).
+  const length = settings?.length
+  switch (length) {
+    case 'short':
+      return 200
+    case 'medium':
+      return 650
+    case 'long':
+      return 1300
+    case 'detailed':
+      return null
+    default:
+      return null
+  }
+}
+
+function clampToMaxChars(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text
+
+  const slice = text.slice(0, maxChars)
+  const punct = ['。', '！', '？', '!', '?', '；', ';', '\n']
+  let last = -1
+  for (const p of punct) {
+    const idx = slice.lastIndexOf(p)
+    if (idx > last) last = idx
+  }
+
+  // Only snap to punctuation if it doesn't cut too aggressively.
+  const cutoff = last >= Math.floor(maxChars * 0.6) ? last + 1 : maxChars
+  return text.slice(0, cutoff).trim()
 }
 
 function isTruthyEnv(value: unknown): boolean {
@@ -436,6 +469,7 @@ export async function POST(req: NextRequest) {
         
         const targetCount = Math.max(1, Math.min(Number(count) || 1, 10))
         const minChars = getMinContentChars(contentSettings)
+        const maxChars = getMaxContentChars(contentSettings)
         const results: ContentItem[] = []
 
         for (let i = 0; i < targetCount; i++) {
@@ -462,9 +496,12 @@ export async function POST(req: NextRequest) {
 
           const parsed = promptBuilder.parseResponse(ollamaResponse.message.content, { allowFallback: allowFallback })
           const item = parsed?.[0]
-          const text = typeof item?.content === 'string' ? item.content.trim() : ''
+          let text = typeof item?.content === 'string' ? item.content.trim() : ''
           if (!text) {
             throw new Error('LLM returned empty content')
+          }
+          if (typeof maxChars === 'number' && Number.isFinite(maxChars) && maxChars > 0) {
+            text = clampToMaxChars(text, maxChars)
           }
           if (text.length < minChars) {
             throw new Error('LLM returned content too short')

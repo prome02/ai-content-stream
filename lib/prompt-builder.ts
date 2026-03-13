@@ -430,16 +430,16 @@ ${modeInstruction}
       technical: '技術詳解，聚焦細節',
     }
     const depthMap: Record<string, string> = {
-      brief: '簡短摘要，快速瀏覽（200-300字）',
-      moderate: '適中深度（400-600字）',
-      deep: '深入探討（800-1200字）',
-      comprehensive: '完整研究，最詳盡的內容（1200字以上）',
+      brief: '簡短摘要，快速瀏覽',
+      moderate: '適中深度，兼顧脈絡與重點',
+      deep: '深入探討，包含原因、影響與脈絡',
+      comprehensive: '完整研究，整合多角度觀點與脈絡',
     }
     const lengthMap: Record<string, string> = {
-      short: '2-3分鐘閱讀的短篇',
-      medium: '5分鐘閱讀的中篇',
-      long: '8分鐘閱讀的長篇',
-      detailed: '10分鐘以上的詳盡內容',
+      short: '短篇（200字以內）',
+      medium: '中篇（400-600字）',
+      long: '長篇（800-1200字）',
+      detailed: '詳盡（1200字以上）',
     }
     const topicMap: Record<string, string> = {
       trending: '聚焦最新趨勢與熱門話題',

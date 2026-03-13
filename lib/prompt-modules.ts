@@ -102,7 +102,7 @@ export const DEPTH_MODULES = {
     id: 'brief',
     name: '簡短',
     wordCount: { min: 200, max: 300 },
-    prompt: `【字數要求】嚴格控制在 200-300 字。
+    prompt: `【篇幅要求】請依照「文章長度」設定控制字數。
 
 【內容要求】
 - 必須包含：1 個核心觀點 + 1 個具體例子或數據
@@ -117,7 +117,7 @@ export const DEPTH_MODULES = {
     id: 'standard',
     name: '標準',
     wordCount: { min: 400, max: 600 },
-    prompt: `【字數要求】嚴格控制在 400-600 字，不得少於 400 字。
+    prompt: `【篇幅要求】請依照「文章長度」設定控制字數。
 
 【內容結構】
 1. 開頭（50-80字）：用一個引人注目的事實、問題或情境切入
@@ -135,7 +135,7 @@ export const DEPTH_MODULES = {
     id: 'deep',
     name: '深度',
     wordCount: { min: 800, max: 1200 },
-    prompt: `【字數要求】嚴格控制在 800-1200 字，不得少於 800 字。
+    prompt: `【篇幅要求】請依照「文章長度」設定控制字數。
 
 【內容結構】
 1. 引言（100-150字）：用具體事件、數據或問題建立讀者興趣
