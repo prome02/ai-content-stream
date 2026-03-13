@@ -11,6 +11,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { saveContent, subscribeToUserFeed } from '@/lib/content-service'
+import { humanizeGenerationError } from '@/lib/humanize-error'
 import { getBrowserLocale } from '@/lib/locale-utils'
 import type { ContentItem, ContentSettings } from '@/types'
 
@@ -154,7 +155,9 @@ export function useContentGeneration(options: UseContentGenerationOptions = {}) 
       const errorMessage = error instanceof Error ? error.message : 'Generation failed'
       console.error('[useContentGeneration] Error:', errorMessage)
 
-      setState(prev => ({ ...prev, isGenerating: false, error: errorMessage }))
+      // Show users an actionable message; keep raw error in console for debugging.
+      const userMessage = humanizeGenerationError(errorMessage)
+      setState(prev => ({ ...prev, isGenerating: false, error: userMessage }))
       options.onError?.(errorMessage)
     }
   }, [subscribeToFeed, options])

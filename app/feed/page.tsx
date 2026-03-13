@@ -293,7 +293,7 @@ export default function FeedPage() {
 
           {/* Error display */}
           {error && (
-            <div className="mt-2 text-xs text-red-500">{error}</div>
+            <div className="mt-2 text-xs text-red-500 whitespace-pre-line">{error}</div>
           )}
 
           {lastRefreshTime && (
